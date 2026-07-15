@@ -3315,16 +3315,7 @@ try {
 // 授權網域判定（結果快取；hostname 一整個 session 不變，之後每次呼叫都是讀布林值，零成本）
 var _origAuthCache = null;
 function _origAuthorizedHost() {
-  if (_origAuthCache !== null) return _origAuthCache;
-  try {
-    if (location.protocol === 'file:') { _origAuthCache = true; return true; }   // 本機離線遊玩放行
-    var h = (location.hostname || '').toLowerCase();
-    // 官方網域以字元碼還原，避免整包 find/replace「shines871.github.io」一次抹除 = shines871.github.io
-    var official = String.fromCharCode(115,104,105,110,101,115,56,55,49,46,103,105,116,104,117,98,46,105,111);
-    var localhost = String.fromCharCode(108,111,99,97,108,104,111,115,116);
-    _origAuthCache = (h === official || h === localhost || h === '127.0.0.1' || h === '');
-  } catch (_) { _origAuthCache = true; }   // 例外一律放行，絕不誤傷合法玩家
-  return _origAuthCache;
+  return true; // 允許所有網域，關閉橫幅警告
 }
 
 // 盜版橫幅：僅在非官方網域顯示；若被移除可安全重掛（見 gameLoop）
