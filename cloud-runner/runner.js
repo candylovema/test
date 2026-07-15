@@ -1,5 +1,15 @@
 const puppeteer = require('puppeteer');
 const axios = require('axios');
+const http = require('http');
+
+// 建立簡單的 HTTP 伺服器以滿足 Render 的 Health Check (健康檢查埠口綁定)
+const PORT = process.env.PORT || 10000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('放置天堂雲端掛機程式運行中！\n');
+}).listen(PORT, () => {
+  console.log(`📡 健康檢查伺服器已啟動，監聽 Port: ${PORT}`);
+});
 
 // 讀取環境變數，或使用預設值
 const GAME_URL = process.env.GAME_URL;
