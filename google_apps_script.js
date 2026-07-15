@@ -10,35 +10,54 @@
  *    - 說明：可填入 "放置天堂存檔同步"
  *    - 誰可以存取：選擇「所有人 (Anyone)」 (請務必選 Anyone，否則 Puppeteer 和遊戲網頁會因為權限無法存取)。
  * 6. 點擊「部署」，並授予必要的 Google 權限。
- * 7. 部署成功後，複製畫面上顯示的「網頁應用程式 URL」 (例如 https://script.google.com/macros/s/.../exec)，
- *    將此網址貼回遊戲前端的雲端同步設定欄位中。
+ * 7. 部署成功後，複製畫面上顯示的「網頁應用程式 URL」，將此網址貼回遊戲前端。
  */
+
+// 獲取試算表物件 (如果是非綁定腳本，會自動透過 ID 開啟指定的試算表)
+function getSpreadsheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    // 您的 Google 試算表 ID：12eDJ7_xOWTTf2UJNqtat0_Xe7Zn4fKrXXHNPl7HR6mI
+    ss = SpreadsheetApp.openById("12eDJ7_xOWTTf2UJNqtat0_Xe7Zn4fKrXXHNPl7HR6mI");
+  }
+  return ss;
+}
 
 function doGet(e) {
   var key = e.parameter.key || "lineage_idle_save_1";
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var data = sheet.getDataRange().getValues();
-  
-  // 尋找指定的 Key (例如存檔欄位名)
-  for (var i = 0; i < data.length; i++) {
-    if (data[i][0] === key) {
-      return ContentService.createTextOutput(JSON.stringify({ 
-        status: "success", 
-        key: key, 
-        data: data[i][1] 
-      })).setMimeType(ContentService.MimeType.JSON);
+  try {
+    var ss = getSpreadsheet();
+    var sheet = ss.getActiveSheet();
+    var data = sheet.getDataRange().getValues();
+    
+    // 尋找指定的 Key (例如存檔欄位名)
+    for (var i = 0; i < data.length; i++) {
+      if (data[i][0] === key) {
+        return ContentService.createTextOutput(JSON.stringify({ 
+          status: "success", 
+          key: key, 
+          data: data[i][1] 
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
     }
+    
+    return ContentService.createTextOutput(JSON.stringify({ 
+      status: "error", 
+      message: "存檔未找到 (Key: " + key + ")" 
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ 
+      status: "error", 
+      message: err.toString() 
+    })).setMimeType(ContentService.MimeType.JSON);
   }
-  
-  return ContentService.createTextOutput(JSON.stringify({ 
-    status: "error", 
-    message: "存檔未找到 (Key: " + key + ")" 
-  })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   try {
+    var ss = getSpreadsheet();
+    var sheet = ss.getActiveSheet();
     var payload = JSON.parse(e.postData.contents);
     var key = payload.key || "lineage_idle_save_1";
     var val = payload.value;
