@@ -734,6 +734,47 @@ function loadEnterSelected(){
 }
 function loadImportSelected(){ importSave(_loadSelectedSlot); }
 function loadRestoreSelected(){ restoreBackup(_loadSelectedSlot); }
+async function loadCloudSelected(){
+    let url = localStorage.getItem('lineage_idle_cloud_api_url') || '';
+    url = prompt('請輸入您的 Google Apps Script API 網址：', url);
+    if (!url) return;
+    url = url.trim();
+    localStorage.setItem('lineage_idle_cloud_api_url', url);
+    
+    try {
+        let slot = _loadSelectedSlot;
+        let key = 'lineage_idle_save_' + slot;
+        
+        let response = await fetch(url + '?key=' + encodeURIComponent(key), {
+            method: 'GET',
+            mode: 'cors'
+        });
+        
+        let resJson = await response.json();
+        if (resJson && resJson.status === 'success' && resJson.data) {
+            let signedSave = resJson.data;
+            
+            // 驗證存檔簽章完整性
+            let _u = _saveUnwrap(signedSave);
+            if (_u.signed && !_u.ok) {
+                alert('下載的雲端存檔完整性校驗未通過。');
+                return;
+            }
+            
+            // 寫入本地存檔
+            _lzSetStoredRaw(key, signedSave);
+            alert(`存檔位 ${slot} 雲端載入成功！`);
+            
+            // 重新刷新角色選擇介面
+            renderLoadSelect();
+        } else {
+            alert('未在雲端找到該欄位的存檔，請確認試算表是否有資料。');
+        }
+    } catch (e) {
+        console.error('[loadCloudSelected] failed', e);
+        alert('自雲端下載存檔失敗：' + e.message);
+    }
+}
 function loadDeleteSelected(){
     const slot = _loadSelectedSlot, sum = slotSummary(slot);
     if(!sum){ renderLoadSelect(); return; }
