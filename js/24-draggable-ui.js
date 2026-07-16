@@ -14,7 +14,6 @@
             #col-left, #col-center, #col-right, #log-row {
                 position: fixed !important;
                 margin: 0 !important;
-                z-index: 45 !important;
                 box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85) !important;
                 border: 2px solid #8d6846 !important;
                 border-radius: 6px !important;
@@ -158,6 +157,39 @@
         }
     `;
     document.head.appendChild(style);
+
+    window._currentFocusedWindowId = '';
+
+    window.updateWindowZIndices = function () {
+        if (innerWidth <= 768) return;
+        
+        const ids = ['col-left', 'col-center', 'col-right', 'log-row'];
+        const prefixes = ['ui_col_left', 'ui_col_center', 'ui_col_right', 'ui_log_row'];
+        const focusedId = window._currentFocusedWindowId || '';
+
+        ids.forEach((id, idx) => {
+            const target = el(id);
+            if (!target) return;
+
+            const prefix = prefixes[idx];
+            const isPinned = localStorage.getItem(prefix + '_pinned') === '1';
+
+            // 計算 z-index，置頂為最高(80)，當前點擊為中等(50)，其他為一般(40)
+            let z = 40;
+            if (isPinned) z = 80;
+            else if (id === focusedId) z = 50;
+
+            target.style.setProperty('z-index', z, 'important');
+
+            // 調整按鈕視覺效果
+            const pinBtn = target.querySelector('.ui-pin-btn');
+            if (pinBtn) {
+                pinBtn.style.background = isPinned ? '#8d6846' : '#4a3b32';
+                pinBtn.style.color = isPinned ? '#fff' : '#fde68a';
+                pinBtn.style.borderColor = isPinned ? '#fde68a' : '#8d6846';
+            }
+        });
+    };
 
     window.applyGameScale = function (scale) {
         const gameScreen = el('game-screen');
@@ -324,7 +356,6 @@
 
     function toggleWindowMinimize(id, key) {
         const target = el(id);
-        const btn = el(`dock-btn-${id}`) || el(`dock-btn-col-log-row`); // 相容舊版名稱
         const exactBtn = el(id === 'col-left' ? 'dock-btn-col-left' : (id === 'col-center' ? 'dock-btn-col-center' : (id === 'col-right' ? 'dock-btn-col-right' : 'dock-btn-log-row')));
         
         if (!target || !exactBtn) return;
@@ -340,7 +371,13 @@
         exactBtn.style.color = isMin ? '#8d6846' : '#fde68a';
     }
 
-    function createDragHandle(targetEl, titleText, onMinimizeClick) {
+    function toggleWindowPin(id, key) {
+        const isPinned = localStorage.getItem(key + '_pinned') === '1';
+        localStorage.setItem(key + '_pinned', isPinned ? '0' : '1');
+        updateWindowZIndices();
+    }
+
+    function createDragHandle(targetEl, titleText, onMinimizeClick, onPinClick) {
         let existing = targetEl.querySelector('.ui-drag-handle');
         if (existing) return existing;
 
@@ -348,12 +385,19 @@
         handle.className = 'ui-drag-handle';
         handle.innerHTML = `
             <span class="ui-drag-title">${titleText}</span>
-            <div style="display:flex;align-items:center;gap:12px;">
-                <span class="ui-drag-hint" style="font-size:10px;opacity:0.6;pointer-events:none;">::: 拖曳此處 / 右下角可縮放 :::</span>
-                <button class="ui-minimize-btn" type="button" title="最小化" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:0px 6px;font-size:11px;line-height:1.4;border-radius:3px;cursor:pointer;font-weight:bold;">⚊</button>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span class="ui-drag-hint" style="font-size:10px;opacity:0.6;pointer-events:none;margin-right:6px;">::: 拖曳此處 / 右下角可縮放 :::</span>
+                <button class="ui-pin-btn" type="button" title="置頂放最前面" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:0px 5px;font-size:11px;line-height:1.4;border-radius:3px;cursor:pointer;font-weight:bold;display:flex;align-items:center;justify-content:center;">📌</button>
+                <button class="ui-minimize-btn" type="button" title="最小化" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:0px 6px;font-size:11px;line-height:1.4;border-radius:3px;cursor:pointer;font-weight:bold;display:flex;align-items:center;justify-content:center;">⚊</button>
             </div>
         `;
         
+        const pinBtn = handle.querySelector('.ui-pin-btn');
+        pinBtn.onclick = function (e) {
+            e.stopPropagation();
+            onPinClick();
+        };
+
         const minBtn = handle.querySelector('.ui-minimize-btn');
         minBtn.onclick = function (e) {
             e.stopPropagation();
@@ -364,8 +408,8 @@
         return handle;
     }
 
-    function makeElementDraggable(targetEl, titleText, storagePrefix, defaultLeftFn, defaultTopFn, onMinimizeClick) {
-        const handle = createDragHandle(targetEl, titleText, onMinimizeClick);
+    function makeElementDraggable(targetEl, titleText, storagePrefix, defaultLeftFn, defaultTopFn, onMinimizeClick, onPinClick) {
+        const handle = createDragHandle(targetEl, titleText, onMinimizeClick, onPinClick);
         let drag = null;
 
         function restorePositionAndSize() {
@@ -494,7 +538,8 @@
                 'ui_col_left',
                 () => 16,
                 () => 16,
-                () => toggleWindowMinimize('col-left', 'ui_col_left')
+                () => toggleWindowMinimize('col-left', 'ui_col_left'),
+                () => toggleWindowPin('col-left', 'ui_col_left')
             );
         }
 
@@ -505,7 +550,8 @@
                 'ui_col_center',
                 () => Math.max(16, Math.round((innerWidth / currentScale) * 0.5 - 410)),
                 () => 16,
-                () => toggleWindowMinimize('col-center', 'ui_col_center')
+                () => toggleWindowMinimize('col-center', 'ui_col_center'),
+                () => toggleWindowPin('col-center', 'ui_col_center')
             );
         }
 
@@ -516,7 +562,8 @@
                 'ui_col_right',
                 () => Math.max(16, (innerWidth / currentScale) - 380 - 16),
                 () => 16,
-                () => toggleWindowMinimize('col-right', 'ui_col_right')
+                () => toggleWindowMinimize('col-right', 'ui_col_right'),
+                () => toggleWindowPin('col-right', 'ui_col_right')
             );
         }
 
@@ -527,9 +574,25 @@
                 'ui_log_row',
                 () => Math.max(16, Math.round((innerWidth / currentScale) * 0.5 - 410)),
                 () => Math.max(16, (innerHeight / currentScale) - 250 - 16),
-                () => toggleWindowMinimize('log-row', 'ui_log_row')
+                () => toggleWindowMinimize('log-row', 'ui_log_row'),
+                () => toggleWindowPin('log-row', 'ui_log_row')
             );
         }
+
+        // 綁定點擊自動置前 (Focus on Click) 邏輯
+        [leftCol, centerCol, rightCol, logRow].forEach(target => {
+            if (target) {
+                target.addEventListener('pointerdown', function () {
+                    if (window._currentFocusedWindowId !== target.id) {
+                        window._currentFocusedWindowId = target.id;
+                        updateWindowZIndices();
+                    }
+                }, { passive: true });
+            }
+        });
+
+        // 載入預設的 z-index 與置頂狀態
+        updateWindowZIndices();
 
         // 統一在指標放開時，儲存所有視窗的位置與大小（覆蓋拖曳、縮放與邊界改變）
         window.addEventListener('pointerup', function () {
