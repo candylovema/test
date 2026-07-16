@@ -12,6 +12,9 @@
  *    - 點擊「部署」按鈕完成升級。
  */
 
+// 安全金鑰（用於 Render 雲端同步認證，請與 Render 上的 GAME_SECRET 保持一致）
+const SPREADSHEET_SECRET_TOKEN = "candylovema_secret_token_abc123";
+
 // 獲取試算表物件
 function getSpreadsheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -45,21 +48,55 @@ function verifyUser(usersSheet, username, password) {
 
 function doGet(e) {
   var action = e.parameter.action;
-  var username = e.parameter.username;
-  var password = e.parameter.password;
   
-  if (!action || !username || !password) {
+  if (!action) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "參數缺失" }))
                          .setMimeType(ContentService.MimeType.JSON);
   }
   
-  username = username.trim();
-  password = password.trim();
-  
   try {
-    var usersSheet = getOrCreateSheet("Users");
+    // 1. 給 Render 批次拉取所有需要掛機的帳號清單
+    if (action === "get_all_active_bots") {
+      var secret = e.parameter.secret;
+      if (secret !== SPREADSHEET_SECRET_TOKEN) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "認證失敗" }))
+                             .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      var usersSheet = getOrCreateSheet("Users");
+      var data = usersSheet.getDataRange().getValues();
+      var botList = [];
+      
+      for (var i = 1; i < data.length; i++) {
+        var u = data[i][0];
+        var p = data[i][1];
+        var isActive = data[i][2]; // is_bot_active 欄位
+        
+        if (u && p && (isActive === true || isActive === "true" || isActive === "")) {
+          botList.push({
+            username: u,
+            password: p,
+            save_key: "lineage_idle_save_1"
+          });
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", bots: botList }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
     
-    // 驗證使用者身分
+    // 2. 單一存檔載入動作 (GET)
+    var username = e.parameter.username;
+    var password = e.parameter.password;
+    if (!username || !password) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "帳密參數缺失" }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    username = username.trim();
+    password = password.trim();
+    
+    var usersSheet = getOrCreateSheet("Users");
     if (!verifyUser(usersSheet, username, password)) {
       return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "帳號或密碼錯誤" }))
                            .setMimeType(ContentService.MimeType.JSON);
@@ -83,7 +120,7 @@ function doGet(e) {
       
       return ContentService.createTextOutput(JSON.stringify({ 
         status: "error", 
-        message: "存檔未找到 (Key: " + key + ")" 
+        message: "存檔未找到" 
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -113,9 +150,23 @@ function doPost(e) {
     
     var usersSheet = getOrCreateSheet("Users");
     
-    // 註冊流程
+    // 前端註冊流程 (POST)
     if (action === "register") {
       var data = usersSheet.getDataRange().getValues();
+      
+      // 如果試算表全新全空，先建立欄位名稱
+      if (data.length === 1 && data[0][0] === "") {
+        usersSheet.getRange(1, 1).setValue("username");
+        usersSheet.getRange(1, 2).setValue("password");
+        usersSheet.getRange(1, 3).setValue("is_bot_active");
+        usersSheet.getRange(1, 4).setValue("last_login");
+        // 寫入第一筆資料，預設開啟雲端掛機 (true)
+        usersSheet.appendRow([username, password, true, new Date()]);
+        return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "註冊成功！" }))
+                             .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      // 檢查帳號是否重複
       for (var i = 0; i < data.length; i++) {
         if (data[i][0] === username) {
           return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "帳號已存在，請使用其它名稱" }))
@@ -123,19 +174,23 @@ function doPost(e) {
         }
       }
       
-      if (data.length === 1 && data[0][0] === "") {
-        usersSheet.getRange(1, 1).setValue(username);
-        usersSheet.getRange(1, 2).setValue(password);
-      } else {
-        usersSheet.appendRow([username, password]);
-      }
+      // 寫入新帳密，預設開啟雲端掛機 (true)
+      usersSheet.appendRow([username, password, true, new Date()]);
       return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "註冊成功！" }))
                            .setMimeType(ContentService.MimeType.JSON);
     }
     
-    // 登入驗證流程
+    // 登入驗證流程 (POST)
     if (action === "login") {
       if (verifyUser(usersSheet, username, password)) {
+        // 更新最後登入時間
+        var data = usersSheet.getDataRange().getValues();
+        for (var i = 0; i < data.length; i++) {
+          if (data[i][0] === username) {
+            usersSheet.getRange(i + 1, 4).setValue(new Date());
+            break;
+          }
+        }
         return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "登入成功！" }))
                              .setMimeType(ContentService.MimeType.JSON);
       } else {
@@ -144,7 +199,7 @@ function doPost(e) {
       }
     }
     
-    // 存檔同步流程
+    // 存檔同步流程 (POST)
     if (action === "save") {
       var key = payload.key || "lineage_idle_save_1";
       var val = payload.value;
