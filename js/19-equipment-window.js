@@ -535,20 +535,29 @@
 
         handle.addEventListener('pointerdown', function (event) {
             if (win.classList.contains('equipment-window-embedded')) return;
-            const rect = frame.getBoundingClientRect();
-            drag = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+            drag = {
+                id: event.pointerId,
+                startX: event.clientX,
+                startY: event.clientY,
+                startLeft: frame.offsetLeft,
+                startTop: frame.offsetTop
+            };
             handle.setPointerCapture(event.pointerId);
             frame.classList.add('is-dragging');
             event.preventDefault();
         });
         handle.addEventListener('pointermove', function (event) {
             if (!drag || drag.id !== event.pointerId) return;
+            let currentScale = parseFloat(localStorage.getItem('game_scale') || '1');
+            let targetX = drag.startLeft + (event.clientX - drag.startX) / currentScale;
+            let targetY = drag.startTop + (event.clientY - drag.startY) / currentScale;
+
             const side = frame.classList.contains('side-open') ? el('equipment-side-panel') : null;
             const sideWidth = side && !side.classList.contains('hidden') ? side.getBoundingClientRect().width + 8 : 0;
-            const maxX = Math.max(0, innerWidth - frame.offsetWidth - sideWidth);
-            const maxY = Math.max(0, innerHeight - frame.offsetHeight);
-            frame.style.left = Math.max(0, Math.min(maxX, event.clientX - drag.dx)) + 'px';
-            frame.style.top = Math.max(0, Math.min(maxY, event.clientY - drag.dy)) + 'px';
+            const maxX = Math.max(0, (innerWidth / currentScale) - frame.offsetWidth - sideWidth);
+            const maxY = Math.max(0, (innerHeight / currentScale) - frame.offsetHeight);
+            frame.style.left = Math.max(0, Math.min(maxX, targetX)) + 'px';
+            frame.style.top = Math.max(0, Math.min(maxY, targetY)) + 'px';
             frame.style.transform = 'none';
         });
         function stopDrag(event) {
@@ -556,9 +565,8 @@
             drag = null;
             frame.classList.remove('is-dragging');
             
-            const rect = frame.getBoundingClientRect();
-            localStorage.setItem('eq_window_x', rect.left);
-            localStorage.setItem('eq_window_y', rect.top);
+            localStorage.setItem('eq_window_x', frame.offsetLeft);
+            localStorage.setItem('eq_window_y', frame.offsetTop);
         }
         handle.addEventListener('pointerup', stopDrag);
         handle.addEventListener('pointercancel', stopDrag);

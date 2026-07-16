@@ -5,6 +5,10 @@
     // 注入 PC 版浮動與縮放 UI 的專用樣式
     const style = document.createElement('style');
     style.textContent = `
+        body {
+            overflow: auto !important; /* 允許縮放超出時出現滾動條 */
+        }
+        
         @media (min-width: 769px) {
             /* 使左、中、右及日誌列在 PC 上變成可縮放的浮動式視窗 */
             #col-left, #col-right, #log-row {
@@ -130,6 +134,93 @@
     `;
     document.head.appendChild(style);
 
+    window.applyGameScale = function (scale) {
+        const gameScreen = el('game-screen');
+        if (!gameScreen) return;
+        
+        localStorage.setItem('game_scale', scale);
+        
+        const slider = el('game-zoom-slider');
+        const label = el('game-zoom-val');
+        if (slider) slider.value = scale;
+        if (label) label.textContent = Math.round(scale * 100) + '%';
+        
+        // 套用 CSS transform 與自適應寬高比例
+        gameScreen.style.transform = `scale(${scale})`;
+        gameScreen.style.transformOrigin = 'top left';
+        gameScreen.style.width = (100 / scale) + '%';
+        gameScreen.style.height = (100 / scale) + '%';
+        
+        // 重新調整裝備與視窗定位
+        if (typeof refreshEquipmentWindow === 'function') refreshEquipmentWindow();
+    };
+
+    function createZoomController() {
+        if (el('game-zoom-controller')) return;
+        
+        const controller = document.createElement('div');
+        controller.id = 'game-zoom-controller';
+        controller.style.cssText = `
+            position: fixed;
+            top: 6px;
+            left: 6px;
+            z-index: 100;
+            background: rgba(20, 22, 28, 0.95);
+            border: 1px solid #8d6846;
+            border-radius: 4px;
+            padding: 4px 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #fde68a;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            font-family: sans-serif;
+            pointer-events: auto;
+        `;
+        
+        controller.innerHTML = `
+            <span style="font-weight:bold;pointer-events:none;">🔍 畫面縮放</span>
+            <button id="game-zoom-minus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">-</button>
+            <input id="game-zoom-slider" type="range" min="0.5" max="1.5" step="0.05" value="1" style="width:70px;margin:0;cursor:pointer;">
+            <button id="game-zoom-plus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">+</button>
+            <span id="game-zoom-val" style="min-width:34px;text-align:right;font-weight:bold;pointer-events:none;">100%</span>
+            <button id="game-zoom-reset" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-size:10px;">1:1</button>
+        `;
+        
+        document.body.appendChild(controller);
+        
+        const slider = el('game-zoom-slider');
+        const plus = el('game-zoom-plus');
+        const minus = el('game-zoom-minus');
+        const reset = el('game-zoom-reset');
+        
+        slider.oninput = function () {
+            applyGameScale(parseFloat(this.value));
+        };
+        
+        plus.onclick = function () {
+            let val = Math.min(1.5, parseFloat(slider.value) + 0.05);
+            applyGameScale(val);
+        };
+        
+        minus.onclick = function () {
+            let val = Math.max(0.5, parseFloat(slider.value) - 0.05);
+            applyGameScale(val);
+        };
+        
+        reset.onclick = function () {
+            applyGameScale(1.0);
+        };
+        
+        let savedScale = localStorage.getItem('game_scale');
+        if (savedScale !== null) {
+            applyGameScale(parseFloat(savedScale));
+        } else {
+            applyGameScale(1.0);
+        }
+    }
+
     function createDragHandle(targetEl, titleText) {
         let existing = targetEl.querySelector('.ui-drag-handle');
         if (existing) return existing;
@@ -174,10 +265,12 @@
             let savedX = localStorage.getItem(storagePrefix + '_x');
             let savedY = localStorage.getItem(storagePrefix + '_y');
 
+            let currentScale = parseFloat(localStorage.getItem('game_scale') || '1');
+
             if (savedX !== null && savedY !== null) {
                 let x = parseFloat(savedX);
                 let y = parseFloat(savedY);
-                if (x >= -200 && x < innerWidth && y >= -50 && y < innerHeight) {
+                if (x >= -200 && x < (innerWidth / currentScale) && y >= -50 && y < (innerHeight / currentScale)) {
                     targetEl.style.left = x + 'px';
                     targetEl.style.top = y + 'px';
                     targetEl.style.right = 'auto';
@@ -197,11 +290,12 @@
         handle.addEventListener('pointerdown', function (event) {
             if (innerWidth <= 768) return;
             if (event.target.closest('button, input, select')) return;
-            const rect = targetEl.getBoundingClientRect();
             drag = {
                 id: event.pointerId,
-                dx: event.clientX - rect.left,
-                dy: event.clientY - rect.top
+                startX: event.clientX,
+                startY: event.clientY,
+                startLeft: targetEl.offsetLeft,
+                startTop: targetEl.offsetTop
             };
             handle.setPointerCapture(event.pointerId);
             targetEl.classList.add('ui-dragging');
@@ -210,11 +304,12 @@
 
         handle.addEventListener('pointermove', function (event) {
             if (!drag || drag.id !== event.pointerId) return;
-            let targetX = event.clientX - drag.dx;
-            let targetY = event.clientY - drag.dy;
+            let currentScale = parseFloat(localStorage.getItem('game_scale') || '1');
+            let targetX = drag.startLeft + (event.clientX - drag.startX) / currentScale;
+            let targetY = drag.startTop + (event.clientY - drag.startY) / currentScale;
 
-            const maxX = innerWidth - 50;
-            const maxY = innerHeight - 50;
+            const maxX = (innerWidth / currentScale) - 50;
+            const maxY = (innerHeight / currentScale) - 50;
             targetX = Math.max(-150, Math.min(maxX, targetX));
             targetY = Math.max(-10, Math.min(maxY, targetY));
 
@@ -227,9 +322,8 @@
             drag = null;
             targetEl.classList.remove('ui-dragging');
 
-            const rect = targetEl.getBoundingClientRect();
-            localStorage.setItem(storagePrefix + '_x', rect.left);
-            localStorage.setItem(storagePrefix + '_y', rect.top);
+            localStorage.setItem(storagePrefix + '_x', targetEl.offsetLeft);
+            localStorage.setItem(storagePrefix + '_y', targetEl.offsetTop);
         }
 
         handle.addEventListener('pointerup', stopDrag);
@@ -244,6 +338,9 @@
         const rightCol = el('col-right');
         const logRow = el('log-row');
 
+        // 1. 創立畫面縮放控制器
+        createZoomController();
+
         if (logRow) {
             const combat = el('combat-log-panel');
             const sys = el('syslog-panel');
@@ -257,6 +354,8 @@
                 wrap.appendChild(sys);
             }
         }
+
+        let currentScale = parseFloat(localStorage.getItem('game_scale') || '1');
 
         if (leftCol) {
             makeElementDraggable(
@@ -273,7 +372,7 @@
                 rightCol, 
                 '🎒 角色背包與功能', 
                 'ui_col_right',
-                () => Math.max(16, innerWidth - 380 - 16),
+                () => Math.max(16, (innerWidth / currentScale) - 380 - 16),
                 () => 16
             );
         }
@@ -283,8 +382,8 @@
                 logRow, 
                 '📜 遊戲日誌', 
                 'ui_log_row',
-                () => Math.max(16, Math.round(innerWidth * 0.5 - 400)),
-                () => Math.max(16, innerHeight - 250 - 16)
+                () => Math.max(16, Math.round((innerWidth / currentScale) * 0.5 - 400)),
+                () => Math.max(16, (innerHeight / currentScale) - 250 - 16)
             );
         }
 
@@ -295,13 +394,16 @@
             [['ui_col_left', 'col-left'], ['ui_col_right', 'col-right'], ['ui_log_row', 'log-row']].forEach(([prefix, id]) => {
                 let target = el(id);
                 if (target) {
-                    const rect = target.getBoundingClientRect();
-                    // 只在合理範圍內儲存，防止極端縮小
-                    if (rect.width > 50 && rect.height > 50) {
-                        localStorage.setItem(prefix + '_x', rect.left);
-                        localStorage.setItem(prefix + '_y', rect.top);
-                        localStorage.setItem(prefix + '_w', rect.width);
-                        localStorage.setItem(prefix + '_h', rect.height);
+                    let x = target.offsetLeft;
+                    let y = target.offsetTop;
+                    let w = target.offsetWidth;
+                    let h = target.offsetHeight;
+                    
+                    if (w > 50 && h > 50) {
+                        localStorage.setItem(prefix + '_x', x);
+                        localStorage.setItem(prefix + '_y', y);
+                        localStorage.setItem(prefix + '_w', w);
+                        localStorage.setItem(prefix + '_h', h);
                     }
                 }
             });

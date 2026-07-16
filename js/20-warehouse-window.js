@@ -46,18 +46,27 @@
 
         handle.addEventListener('pointerdown', function (event) {
             if (event.target.closest('button, input, select')) return;
-            const rect = frame.getBoundingClientRect();
-            drag = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+            drag = {
+                id: event.pointerId,
+                startX: event.clientX,
+                startY: event.clientY,
+                startLeft: frame.offsetLeft,
+                startTop: frame.offsetTop
+            };
             handle.setPointerCapture(event.pointerId);
             frame.classList.add('is-dragging');
             event.preventDefault();
         });
         handle.addEventListener('pointermove', function (event) {
             if (!drag || drag.id !== event.pointerId) return;
-            const maxX = Math.max(0, innerWidth - frame.offsetWidth);
-            const maxY = Math.max(0, innerHeight - frame.offsetHeight);
-            frame.style.left = Math.max(0, Math.min(maxX, event.clientX - drag.dx)) + 'px';
-            frame.style.top = Math.max(0, Math.min(maxY, event.clientY - drag.dy)) + 'px';
+            let currentScale = parseFloat(localStorage.getItem('game_scale') || '1');
+            let targetX = drag.startLeft + (event.clientX - drag.startX) / currentScale;
+            let targetY = drag.startTop + (event.clientY - drag.startY) / currentScale;
+
+            const maxX = Math.max(0, (innerWidth / currentScale) - frame.offsetWidth);
+            const maxY = Math.max(0, (innerHeight / currentScale) - frame.offsetHeight);
+            frame.style.left = Math.max(0, Math.min(maxX, targetX)) + 'px';
+            frame.style.top = Math.max(0, Math.min(maxY, targetY)) + 'px';
             frame.style.transform = 'none';
         });
         function stop(event) {
@@ -65,9 +74,8 @@
             drag = null;
             frame.classList.remove('is-dragging');
             
-            const rect = frame.getBoundingClientRect();
-            localStorage.setItem('wh_window_x', rect.left);
-            localStorage.setItem('wh_window_y', rect.top);
+            localStorage.setItem('wh_window_x', frame.offsetLeft);
+            localStorage.setItem('wh_window_y', frame.offsetTop);
         }
         handle.addEventListener('pointerup', stop);
         handle.addEventListener('pointercancel', stop);
