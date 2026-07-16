@@ -1,101 +1,194 @@
 /**
- * 放置天堂 - Google 試算表存盤同步 API (Google Apps Script)
+ * 放置天堂 - Google 試算表存盤同步與使用者認證 API (Google Apps Script)
  * 
  * 使用教學：
- * 1. 打開 Google 雲端硬碟，建立一個新的「Google 試算表」。
+ * 1. 打開 Google 雲端硬碟中的「放置天堂試算表」。
  * 2. 點擊選單的「擴充功能」 -> 「Apps Script」。
  * 3. 清空原本的代碼，將此檔案的所有內容貼上。
- * 4. 點擊右上角「部署」 -> 「新增部署」。
- * 5. 選擇部署類型為「網頁應用程式 (Web App)」。
- *    - 說明：可填入 "放置天堂存檔同步"
- *    - 誰可以存取：選擇「所有人 (Anyone)」 (請務必選 Anyone，否則 Puppeteer 和遊戲網頁會因為權限無法存取)。
- * 6. 點擊「部署」，並授予必要的 Google 權限。
- * 7. 部署成功後，複製畫面上顯示的「網頁應用程式 URL」，將此網址貼回遊戲前端。
+ * 4. 點擊右上角「儲存」圖示。
+ * 5. 點擊右上角「部署」 -> 「管理部署」。
+ *    - 點擊作用中部署旁邊的「編輯 (鉛筆圖示)」
+ *    - 在「版本」選單選擇「新增版本」
+ *    - 點擊「部署」按鈕完成升級。
  */
 
-// 獲取試算表物件 (如果是非綁定腳本，會自動透過 ID 開啟指定的試算表)
+// 獲取試算表物件
 function getSpreadsheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) {
-    // 您的 Google 試算表 ID：12eDJ7_xOWTTf2UJNqtat0_Xe7Zn4fKrXXHNPl7HR6mI
+    // 您的 Google 試算表 ID
     ss = SpreadsheetApp.openById("12eDJ7_xOWTTf2UJNqtat0_Xe7Zn4fKrXXHNPl7HR6mI");
   }
   return ss;
 }
 
+// 獲取或建立工作表
+function getOrCreateSheet(name) {
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+  }
+  return sheet;
+}
+
+// 驗證使用者帳號密碼是否正確
+function verifyUser(usersSheet, username, password) {
+  var data = usersSheet.getDataRange().getValues();
+  for (var i = 0; i < data.length; i++) {
+    if (data[i][0] === username) {
+      return data[i][1] === password;
+    }
+  }
+  return false;
+}
+
 function doGet(e) {
-  var key = e.parameter.key || "lineage_idle_save_1";
+  var action = e.parameter.action;
+  var username = e.parameter.username;
+  var password = e.parameter.password;
+  
+  if (!action || !username || !password) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "參數缺失" }))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  username = username.trim();
+  password = password.trim();
+  
   try {
-    var ss = getSpreadsheet();
-    var sheet = ss.getActiveSheet();
-    var data = sheet.getDataRange().getValues();
+    var usersSheet = getOrCreateSheet("Users");
     
-    // 尋找指定的 Key (例如存檔欄位名)
-    for (var i = 0; i < data.length; i++) {
-      if (data[i][0] === key) {
-        return ContentService.createTextOutput(JSON.stringify({ 
-          status: "success", 
-          key: key, 
-          data: data[i][1] 
-        })).setMimeType(ContentService.MimeType.JSON);
-      }
+    // 驗證使用者身分
+    if (!verifyUser(usersSheet, username, password)) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "帳號或密碼錯誤" }))
+                           .setMimeType(ContentService.MimeType.JSON);
     }
     
-    return ContentService.createTextOutput(JSON.stringify({ 
-      status: "error", 
-      message: "存檔未找到 (Key: " + key + ")" 
-    })).setMimeType(ContentService.MimeType.JSON);
+    if (action === "load") {
+      var key = e.parameter.key || "lineage_idle_save_1";
+      var savesSheet = getOrCreateSheet("Saves");
+      var data = savesSheet.getDataRange().getValues();
+      var saveKey = username + "_" + key;
+      
+      for (var i = 0; i < data.length; i++) {
+        if (data[i][0] === saveKey) {
+          return ContentService.createTextOutput(JSON.stringify({ 
+            status: "success", 
+            key: key, 
+            data: data[i][1] 
+          })).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({ 
+        status: "error", 
+        message: "存檔未找到 (Key: " + key + ")" 
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
     
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "未知動作" }))
+                         .setMimeType(ContentService.MimeType.JSON);
+                         
   } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({ 
-      status: "error", 
-      message: err.toString() 
-    })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+                         .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
 function doPost(e) {
   try {
-    var ss = getSpreadsheet();
-    var sheet = ss.getActiveSheet();
     var payload = JSON.parse(e.postData.contents);
-    var key = payload.key || "lineage_idle_save_1";
-    var val = payload.value;
+    var action = payload.action;
+    var username = payload.username;
+    var password = payload.password;
     
-    if (!val) {
-      return ContentService.createTextOutput(JSON.stringify({ 
-        status: "error", 
-        message: "存檔內容為空" 
-      })).setMimeType(ContentService.MimeType.JSON);
+    if (!action || !username || !password) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "參數缺失" }))
+                           .setMimeType(ContentService.MimeType.JSON);
     }
     
-    var data = sheet.getDataRange().getValues();
-    var foundIndex = -1;
+    username = username.trim();
+    password = password.trim();
     
-    // 檢查 Key 是否已存在
-    for (var i = 0; i < data.length; i++) {
-      if (data[i][0] === key) {
-        foundIndex = i + 1; // 1-based index
-        break;
+    var usersSheet = getOrCreateSheet("Users");
+    
+    // 註冊流程
+    if (action === "register") {
+      var data = usersSheet.getDataRange().getValues();
+      for (var i = 0; i < data.length; i++) {
+        if (data[i][0] === username) {
+          return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "帳號已存在，請使用其它名稱" }))
+                               .setMimeType(ContentService.MimeType.JSON);
+        }
       }
-    }
-    
-    // 如果存在就更新，否則新增一行
-    if (foundIndex !== -1) {
-      sheet.getRange(foundIndex, 2).setValue(val);
-    } else {
-      // 若是全新空白試算表，第一行可能為空，安全起見先檢查
+      
       if (data.length === 1 && data[0][0] === "") {
-        sheet.getRange(1, 1).setValue(key);
-        sheet.getRange(1, 2).setValue(val);
+        usersSheet.getRange(1, 1).setValue(username);
+        usersSheet.getRange(1, 2).setValue(password);
       } else {
-        sheet.appendRow([key, val]);
+        usersSheet.appendRow([username, password]);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "註冊成功！" }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 登入驗證流程
+    if (action === "login") {
+      if (verifyUser(usersSheet, username, password)) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "登入成功！" }))
+                             .setMimeType(ContentService.MimeType.JSON);
+      } else {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "帳號或密碼錯誤" }))
+                             .setMimeType(ContentService.MimeType.JSON);
       }
     }
     
-    return ContentService.createTextOutput(JSON.stringify({ 
-      status: "success" 
-    })).setMimeType(ContentService.MimeType.JSON);
+    // 存檔同步流程
+    if (action === "save") {
+      var key = payload.key || "lineage_idle_save_1";
+      var val = payload.value;
+      
+      if (!val) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "存檔內容為空" }))
+                             .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      // 驗證權限
+      if (!verifyUser(usersSheet, username, password)) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "身分驗證失敗，無法存取雲端" }))
+                             .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      var savesSheet = getOrCreateSheet("Saves");
+      var data = savesSheet.getDataRange().getValues();
+      var saveKey = username + "_" + key;
+      var foundIndex = -1;
+      
+      for (var i = 0; i < data.length; i++) {
+        if (data[i][0] === saveKey) {
+          foundIndex = i + 1; // 1-based index
+          break;
+        }
+      }
+      
+      if (foundIndex !== -1) {
+        savesSheet.getRange(foundIndex, 2).setValue(val);
+      } else {
+        if (data.length === 1 && data[0][0] === "") {
+          savesSheet.getRange(1, 1).setValue(saveKey);
+          savesSheet.getRange(1, 2).setValue(val);
+        } else {
+          savesSheet.appendRow([saveKey, val]);
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "雲端存檔成功" }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "未知動作" }))
+                         .setMimeType(ContentService.MimeType.JSON);
     
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({ 

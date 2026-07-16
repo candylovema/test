@@ -735,17 +735,18 @@ function loadEnterSelected(){
 function loadImportSelected(){ importSave(_loadSelectedSlot); }
 function loadRestoreSelected(){ restoreBackup(_loadSelectedSlot); }
 async function loadCloudSelected(){
-    let url = localStorage.getItem('lineage_idle_cloud_api_url') || '';
-    url = prompt('請輸入您的 Google Apps Script API 網址：', url);
-    if (!url) return;
-    url = url.trim();
-    localStorage.setItem('lineage_idle_cloud_api_url', url);
+    let username = localStorage.getItem('lineage_idle_username') || '';
+    let password = localStorage.getItem('lineage_idle_password') || '';
+    if (!username || !password) {
+        alert('請先登入帳號！');
+        return;
+    }
     
     try {
         let slot = _loadSelectedSlot;
         let key = 'lineage_idle_save_' + slot;
         
-        let response = await fetch(url + '?key=' + encodeURIComponent(key), {
+        let response = await fetch(`${CLOUD_API_URL}?action=load&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&key=${encodeURIComponent(key)}`, {
             method: 'GET',
             mode: 'cors'
         });
@@ -1644,12 +1645,14 @@ function loadGame() {
         
         // ☁️ 還原雲端同步 UI 設定
         try {
-            let savedUrl = localStorage.getItem('lineage_idle_cloud_api_url') || '';
             let savedAuto = localStorage.getItem('lineage_idle_cloud_auto_sync') === 'true';
-            let urlInput = document.getElementById('cloud-api-url');
             let autoSyncInput = document.getElementById('cloud-auto-sync');
-            if (urlInput) urlInput.value = savedUrl;
             if (autoSyncInput) autoSyncInput.checked = savedAuto;
+            
+            // 更新 UI 上顯示的帳號名稱
+            let display = document.getElementById('cloud-username-display');
+            let username = localStorage.getItem('lineage_idle_username') || '';
+            if (display) display.innerText = username;
         } catch(e) {}
 
         _uiConfigReady = true;   // 🛡️ 審計#1：config→DOM 還原完成，此後 saveGame 才可用 DOM 重建 config
@@ -1664,18 +1667,205 @@ function loadGame() {
     }
 }
 
+// ===================== 🔑 帳號密碼登入驗證與雲端對接 =====================
+const CLOUD_API_URL = "https://script.google.com/macros/s/AKfycbwg3SvbNsDk-rJix_dJ2AWNoexGA9jZ0kGXUcr6Dd4pwoyQgjsn6g2icWYKlR1qBaz6lw/exec";
+
+// 網頁載入時自動執行：初始化登入狀態與自動登入
+(function initLoginSystem() {
+    window.addEventListener('DOMContentLoaded', () => {
+        let savedUser = localStorage.getItem('lineage_idle_username');
+        let savedPass = localStorage.getItem('lineage_idle_password');
+        if (savedUser && savedPass) {
+            // 嘗試自動登入
+            autoLogin(savedUser, savedPass);
+        } else {
+            // 顯示登入遮罩，隱藏主選單
+            showLoginModal(true);
+        }
+    });
+})();
+
+function showLoginModal(show) {
+    let modal = document.getElementById('game-login-modal');
+    if (modal) {
+        modal.classList.toggle('hidden', !show);
+    }
+}
+
+function setLoginLoading(loading) {
+    let form = document.getElementById('login-form-fields');
+    let load = document.getElementById('login-loading-state');
+    if (form) form.classList.toggle('hidden', loading);
+    if (load) load.classList.toggle('hidden', !loading);
+}
+
+function showLoginError(msg) {
+    let err = document.getElementById('login-error-msg');
+    if (err) {
+        err.innerHTML = msg;
+    }
+}
+
+// 自動登入 (背景驗證)
+async function autoLogin(username, password) {
+    setLoginLoading(true);
+    try {
+        let body = {
+            action: 'login',
+            username: username,
+            password: password
+        };
+        let response = await fetch(CLOUD_API_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(body)
+        });
+        let res = await response.json();
+        if (res && res.status === 'success') {
+            onLoginSuccess(username, password);
+        } else {
+            // 驗證失敗，清除錯誤帳密，要求手動登入
+            localStorage.removeItem('lineage_idle_username');
+            localStorage.removeItem('lineage_idle_password');
+            showLoginModal(true);
+            setLoginLoading(false);
+            showLoginError('自動登入失敗，密碼可能已變更，請重新輸入。');
+        }
+    } catch (e) {
+        console.error('Auto login network error, fallback to offline', e);
+        // 為避免玩家斷網無法遊戲，暫時進入離線模式
+        onLoginSuccess(username, password);
+        logSys('<span class="text-orange-400 font-bold">⚠️ 網路連線異常，已切換為離線模式（無法同步雲端）。</span>');
+    }
+}
+
+// 手動點擊登入
+async function handleLoginClick() {
+    let userEl = document.getElementById('login-username');
+    let passEl = document.getElementById('login-password');
+    let username = userEl ? userEl.value.trim() : '';
+    let password = passEl ? passEl.value.trim() : '';
+    
+    if (!username || !password) {
+        showLoginError('請填寫帳號與密碼！');
+        return;
+    }
+    
+    showLoginError('');
+    setLoginLoading(true);
+    
+    try {
+        let body = {
+            action: 'login',
+            username: username,
+            password: password
+        };
+        let response = await fetch(CLOUD_API_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(body)
+        });
+        let res = await response.json();
+        if (res && res.status === 'success') {
+            localStorage.setItem('lineage_idle_username', username);
+            localStorage.setItem('lineage_idle_password', password);
+            onLoginSuccess(username, password);
+        } else {
+            setLoginLoading(false);
+            showLoginError(res.message || '登入失敗，請檢查帳號密碼。');
+        }
+    } catch(e) {
+        setLoginLoading(false);
+        showLoginError('登入失敗，連線異常：' + e.message);
+    }
+}
+
+// 手動點擊註冊
+async function handleRegisterClick() {
+    let userEl = document.getElementById('login-username');
+    let passEl = document.getElementById('login-password');
+    let username = userEl ? userEl.value.trim() : '';
+    let password = passEl ? passEl.value.trim() : '';
+    
+    if (!username || !password) {
+        showLoginError('請填寫欲註冊的帳號與密碼！');
+        return;
+    }
+    
+    if (username.length < 3 || password.length < 4) {
+        showLoginError('帳號需至少 3 字元，密碼至少 4 字元。');
+        return;
+    }
+    
+    showLoginError('');
+    setLoginLoading(true);
+    
+    try {
+        let body = {
+            action: 'register',
+            username: username,
+            password: password
+        };
+        let response = await fetch(CLOUD_API_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(body)
+        });
+        let res = await response.json();
+        if (res && res.status === 'success') {
+            // 註冊成功，自動登入
+            localStorage.setItem('lineage_idle_username', username);
+            localStorage.setItem('lineage_idle_password', password);
+            onLoginSuccess(username, password);
+            alert('註冊成功！已自動登入。');
+        } else {
+            setLoginLoading(false);
+            showLoginError(res.message || '註冊失敗');
+        }
+    } catch(e) {
+        setLoginLoading(false);
+        showLoginError('註冊失敗，連線異常：' + e.message);
+    }
+}
+
+function onLoginSuccess(username, password) {
+    showLoginModal(false);
+    setLoginLoading(false);
+    
+    // 更新介面上的帳號顯示
+    let display = document.getElementById('cloud-username-display');
+    if (display) {
+        display.innerText = username;
+    }
+    
+    // 刷新角色選單
+    try {
+        renderLoadSelect();
+    } catch(e) {}
+}
+
+function gameLogout() {
+    if (confirm('確定要登出此帳號嗎？\n本地進度會保留，您可以換帳號登入。')) {
+        localStorage.removeItem('lineage_idle_username');
+        localStorage.removeItem('lineage_idle_password');
+        window.location.reload();
+    }
+}
+
 // ===================== ☁️ 雲端同步與存檔核心邏輯 =====================
 async function cloudSaveGame(silent = false) {
-    let urlInput = document.getElementById('cloud-api-url');
-    let url = urlInput ? urlInput.value.trim() : '';
-    if (!url) {
-        if (!silent) alert('請先輸入 Google Apps Script API 網址！');
+    let username = localStorage.getItem('lineage_idle_username') || '';
+    let password = localStorage.getItem('lineage_idle_password') || '';
+    if (!username || !password) {
+        if (!silent) alert('請先登入帳號！');
         return false;
     }
     
     // 儲存設定至本地 LocalStorage
     try {
-        localStorage.setItem('lineage_idle_cloud_api_url', url);
         let autoSyncInput = document.getElementById('cloud-auto-sync');
         let autoSync = autoSyncInput ? autoSyncInput.checked : false;
         localStorage.setItem('lineage_idle_cloud_auto_sync', autoSync ? 'true' : 'false');
@@ -1702,15 +1892,18 @@ async function cloudSaveGame(silent = false) {
         
         let signedSave = _saveWrap(savePayload);
         let body = {
+            action: 'save',
+            username: username,
+            password: password,
             key: 'lineage_idle_save_' + currentSlot,
             value: signedSave
         };
         
-        let response = await fetch(url, {
+        let response = await fetch(CLOUD_API_URL, {
             method: 'POST',
             mode: 'cors',
             headers: {
-                'Content-Type': 'text/plain' // 使用 text/plain 可避免 GAS CORS preflight 預檢請求失敗問題
+                'Content-Type': 'text/plain'
             },
             body: JSON.stringify(body)
         });
@@ -1730,10 +1923,10 @@ async function cloudSaveGame(silent = false) {
 }
 
 async function cloudLoadGame() {
-    let urlInput = document.getElementById('cloud-api-url');
-    let url = urlInput ? urlInput.value.trim() : '';
-    if (!url) {
-        alert('請先輸入 Google Apps Script API 網址！');
+    let username = localStorage.getItem('lineage_idle_username') || '';
+    let password = localStorage.getItem('lineage_idle_password') || '';
+    if (!username || !password) {
+        alert('請先登入帳號！');
         return false;
     }
     
@@ -1741,7 +1934,7 @@ async function cloudLoadGame() {
         logSys('正在從雲端載入存檔...');
         
         let key = 'lineage_idle_save_' + currentSlot;
-        let response = await fetch(url + '?key=' + encodeURIComponent(key), {
+        let response = await fetch(`${CLOUD_API_URL}?action=load&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&key=${encodeURIComponent(key)}`, {
             method: 'GET',
             mode: 'cors'
         });

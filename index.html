@@ -39,6 +39,45 @@
 
     <!-- 🖥️ v2.5.8 流動式版面：#app-stage 由 CSS position:fixed;inset:0 填滿整個視窗，內層三欄 flex 隨視窗大小自然撐開（無固定 1920×1080、無 transform 縮放、無 letterbox）。VFX/提示/游標光點掛在 body（舞台外）→ getBoundingClientRect 取真實視窗座標、天生相容。 -->
     <div id="app-stage">
+    
+    <!-- 🔑 遊戲登入/註冊 遮罩面板 -->
+    <div id="game-login-modal" class="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4">
+      <div class="w-full max-w-sm bg-slate-900 border-2 border-yellow-600 rounded-2xl p-6 shadow-[0_0_50px_rgba(0,0,0,0.85)] flex flex-col gap-4 text-slate-100">
+        <div class="text-center">
+            <h2 class="text-2xl font-bold text-yellow-400 tracking-wide mb-1">放置天堂</h2>
+            <p class="text-xs text-slate-400">登入您的帳號以同步雲端存檔</p>
+        </div>
+        
+        <!-- 登入/註冊表單 -->
+        <div id="login-form-fields" class="flex flex-col gap-4">
+            <div class="flex flex-col gap-3">
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs text-slate-400">帳號 (Username)</label>
+                    <input type="text" id="login-username" class="bg-slate-950 border border-slate-700 rounded p-2 text-sm outline-none text-white focus:border-yellow-500" placeholder="請輸入帳號">
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs text-slate-400">密碼 (Password)</label>
+                    <input type="password" id="login-password" class="bg-slate-950 border border-slate-700 rounded p-2 text-sm outline-none text-white focus:border-yellow-500" placeholder="請輸入密碼">
+                </div>
+            </div>
+            <div id="login-error-msg" class="text-xs text-red-400 text-center font-bold min-h-[1rem]"></div>
+            <div class="grid grid-cols-2 gap-3 mt-1">
+                <button onclick="handleLoginClick()" id="btn-login-submit" class="btn py-2.5 text-sm font-bold bg-yellow-700 hover:bg-yellow-600 border-yellow-500 text-yellow-50 shadow">登入</button>
+                <button onclick="handleRegisterClick()" id="btn-register-submit" class="btn py-2.5 text-sm font-bold bg-slate-750 hover:bg-slate-700 border-slate-600 text-slate-200">註冊新帳號</button>
+            </div>
+        </div>
+
+        <!-- 驗證中狀態 -->
+        <div id="login-loading-state" class="hidden text-center text-sm text-yellow-400 font-bold py-4">
+            <div class="animate-spin inline-block w-6 h-6 border-[3px] border-current border-t-transparent text-yellow-500 rounded-full mb-2" role="status"></div>
+            <div>正在驗證帳密，請稍後...</div>
+        </div>
+
+        <div class="text-center text-[10px] text-slate-500 mt-2 border-t border-slate-800 pt-3 leading-relaxed">
+            * 雲端存檔與此帳號綁定。輸入正確的帳號密碼才能載入對應的角色。
+        </div>
+      </div>
+    </div>
 
     <!-- 創角畫面（🎨 v3.0.40 起始UI：310.png 固定底圖＋273~300 左下逐幀動畫·標題/選單/版號絕對定位於 4:3 藝術舞台上） -->
     <div id="creation-screen">
@@ -446,12 +485,14 @@
                     </div>
                     <!-- ☁️ 雲端存檔與同步設定 -->
                     <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 mt-3 flex flex-col gap-2">
-                        <div class="text-sm text-cyan-200 font-bold border-b border-slate-700 pb-1 flex items-center gap-1">☁️ 雲端存檔同步 (Google 試算表)</div>
-                        <div class="flex flex-col gap-1.5 mt-1">
-                            <label class="text-xs text-slate-400">Google Apps Script API 網址</label>
-                            <input type="text" id="cloud-api-url" class="w-full bg-slate-900 border border-slate-600 rounded p-1.5 text-xs text-white outline-none" placeholder="https://script.google.com/macros/s/.../exec">
+                        <div class="text-sm text-cyan-200 font-bold border-b border-slate-700 pb-1 flex items-center justify-between">
+                            <span class="flex items-center gap-1">☁️ 雲端存檔同步 (Google 試算表)</span>
+                            <button onclick="gameLogout()" class="text-xs bg-red-800 hover:bg-red-700 px-2 py-0.5 rounded text-white border border-red-600">登出</button>
                         </div>
-                        <div class="grid grid-cols-2 gap-2 mt-2">
+                        <div class="text-xs text-slate-300 mt-1 flex flex-col gap-1">
+                            <div>當前登入帳號：<strong id="cloud-username-display" class="text-cyan-400"></strong></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mt-1">
                             <button onclick="cloudLoadGame()" class="btn py-2 text-xs font-bold bg-indigo-900 hover:bg-indigo-800 border-indigo-700 text-indigo-100 shadow">手動載入雲端</button>
                             <button onclick="cloudSaveGame()" class="btn py-2 text-xs font-bold bg-emerald-900 hover:bg-emerald-800 border-emerald-700 text-emerald-100 shadow">手動同步雲端</button>
                         </div>
@@ -575,7 +616,7 @@
 <script src="js/10-ui-tabs.js?v=v3.4.60-relic-text-all"></script>
 <script src="js/11-world-map.js?v=v3.4.57-sherine-mr"></script>
 <script src="js/12-npc-quests.js?v=v3.4.30-pledge-portrait"></script>
-<script src="js/13-shop-save.js?v=v3.4.61-load-enter-cloudsync2"></script>
+<script src="js/13-shop-save.js?v=v3.4.61-load-enter-cloudsync3"></script>
 <script src="js/14-craft-pandora.js?v=v3.4.12-soulearrings"></script>
 <script src="js/15-cards.js?v=v3.2.64-8dircodex"></script>
 <script src="js/16-equip-book.js?v=v3.2.37-petgear"></script>
