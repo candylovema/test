@@ -125,6 +125,21 @@ async function loginAndPlay(page, bot, cloudSave) {
     loadEnterSelected();
   });
   console.log(`🚀 [${bot.username}] 進入遊戲成功，掛機正式開始！`);
+
+  // 等待遊戲加載就緒後，若身在城鎮則自動點擊「出發」練功
+  await sleep(3000);
+  const inTown = await page.evaluate(() => {
+    if (typeof mapState !== 'undefined' && mapState.current && mapState.current.startsWith('town_')) {
+      if (typeof departToLastBattle === 'function') {
+        departToLastBattle();
+        return true;
+      }
+    }
+    return false;
+  });
+  if (inTown) {
+    console.log(`✈️ [${bot.username}] 偵測到身處村莊，已自動呼叫 [出發] 前往最後戰鬥地圖！`);
+  }
 }
 
 async function run() {
@@ -172,7 +187,22 @@ async function run() {
           }
         }
         
-        // B. 定時存檔並上傳雲端
+        // B. 若因為死亡或補給回到了村莊，自動點擊「出發」重返戰場
+        const inTown = await page.evaluate(() => {
+          if (typeof mapState !== 'undefined' && mapState.current && mapState.current.startsWith('town_')) {
+            if (typeof departToLastBattle === 'function') {
+              departToLastBattle();
+              return true;
+            }
+          }
+          return false;
+        });
+        if (inTown) {
+          console.log(`✈️ [${bot.username}] 偵測到身處村莊，已自動呼叫 [出發] 重返戰場！`);
+          await sleep(2000); // 等待地圖切換
+        }
+        
+        // C. 定時存檔並上傳雲端
         await page.evaluate(() => {
           if (typeof saveGame === 'function') {
             saveGame();
@@ -200,13 +230,14 @@ async function run() {
               cls: player.cls,
               lv: player.lv,
               gold: player.gold,
-              exp: (player.exp / 100).toFixed(4) + '%'
+              exp: (player.exp / 100).toFixed(4) + '%',
+              map: mapState.current
             };
           }
           return null;
         });
         if (playerInfo) {
-          console.log(`📊 [${bot.username}] 當前狀態: [${playerInfo.cls}] Lv.${playerInfo.lv} ${playerInfo.name} | 金幣: ${playerInfo.gold.toLocaleString()} | 經驗: ${playerInfo.exp}`);
+          console.log(`📊 [${bot.username}] 當前狀態: [${playerInfo.cls}] Lv.${playerInfo.lv} | 金幣: ${playerInfo.gold.toLocaleString()} | 經驗: ${playerInfo.exp} | 地圖: ${playerInfo.map}`);
         }
         
       } catch (err) {
