@@ -1688,15 +1688,15 @@ const CLOUD_API_URL = "https://script.google.com/macros/s/AKfycbwg3SvbNsDk-rJix_
 function showLoginModal(show) {
     let modal = document.getElementById('game-login-modal');
     if (modal) {
-        modal.classList.toggle('hidden', !show);
+        modal.style.setProperty('display', show ? 'flex' : 'none', 'important');
     }
 }
 
 function setLoginLoading(loading) {
     let form = document.getElementById('login-form-fields');
     let load = document.getElementById('login-loading-state');
-    if (form) form.classList.toggle('hidden', loading);
-    if (load) load.classList.toggle('hidden', !loading);
+    if (form) form.style.display = loading ? 'none' : 'flex';
+    if (load) load.style.display = loading ? 'block' : 'none';
 }
 
 function showLoginError(msg) {

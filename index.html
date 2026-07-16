@@ -41,39 +41,42 @@
     <div id="app-stage">
     
     <!-- 🔑 遊戲登入/註冊 遮罩面板 -->
-    <div id="game-login-modal" class="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4">
-      <div class="w-full max-w-sm bg-slate-900 border-2 border-yellow-600 rounded-2xl p-6 shadow-[0_0_50px_rgba(0,0,0,0.85)] flex flex-col gap-4 text-slate-100">
-        <div class="text-center">
-            <h2 class="text-2xl font-bold text-yellow-400 tracking-wide mb-1">放置天堂</h2>
-            <p class="text-xs text-slate-400">登入您的帳號以同步雲端存檔</p>
+    <div id="game-login-modal" style="position: fixed; inset: 0; z-index: 2147483647; background-color: rgba(3, 7, 18, 0.95); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 16px; font-family: 'Microsoft JhengHei', sans-serif;">
+      <div style="width: 100%; max-width: 380px; background-color: #0f172a; border: 2px solid #ca8a04; border-radius: 16px; padding: 24px; box-shadow: 0 0 50px rgba(0, 0, 0, 0.85); display: flex; flex-direction: column; gap: 16px; color: #f1f5f9;">
+        <div style="text-align: center;">
+            <h2 style="font-size: 24px; font-weight: bold; color: #eab308; margin: 0 0 4px 0; letter-spacing: 1px;">放置天堂</h2>
+            <p style="font-size: 12px; color: #94a3b8; margin: 0;">登入您的帳號以同步雲端存檔</p>
         </div>
         
         <!-- 登入/註冊表單 -->
-        <div id="login-form-fields" class="flex flex-col gap-4">
-            <div class="flex flex-col gap-3">
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs text-slate-400">帳號 (Username)</label>
-                    <input type="text" id="login-username" class="bg-slate-950 border border-slate-700 rounded p-2 text-sm outline-none text-white focus:border-yellow-500" placeholder="請輸入帳號">
+        <div id="login-form-fields" style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label style="font-size: 12px; color: #94a3b8; text-align: left;">帳號 (Username)</label>
+                    <input type="text" id="login-username" style="background-color: #020617; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-size: 14px; outline: none; color: #ffffff;" placeholder="請輸入帳號">
                 </div>
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs text-slate-400">密碼 (Password)</label>
-                    <input type="password" id="login-password" class="bg-slate-950 border border-slate-700 rounded p-2 text-sm outline-none text-white focus:border-yellow-500" placeholder="請輸入密碼">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label style="font-size: 12px; color: #94a3b8; text-align: left;">密碼 (Password)</label>
+                    <input type="password" id="login-password" style="background-color: #020617; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-size: 14px; outline: none; color: #ffffff;" placeholder="請輸入密碼">
                 </div>
             </div>
-            <div id="login-error-msg" class="text-xs text-red-400 text-center font-bold min-h-[1rem]"></div>
-            <div class="grid grid-cols-2 gap-3 mt-1">
-                <button onclick="handleLoginClick()" id="btn-login-submit" class="btn py-2.5 text-sm font-bold bg-yellow-700 hover:bg-yellow-600 border-yellow-500 text-yellow-50 shadow">登入</button>
-                <button onclick="handleRegisterClick()" id="btn-register-submit" class="btn py-2.5 text-sm font-bold bg-slate-750 hover:bg-slate-700 border-slate-600 text-slate-200">註冊新帳號</button>
+            <div id="login-error-msg" style="font-size: 12px; color: #f87171; text-align: center; font-weight: bold; min-height: 16px;"></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px;">
+                <button onclick="handleLoginClick()" id="btn-login-submit" style="background: linear-gradient(180deg, #b45309, #78350f); border: 1px solid #eab308; color: #fef08a; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">登入</button>
+                <button onclick="handleRegisterClick()" id="btn-register-submit" style="background-color: #334155; border: 1px solid #475569; color: #e2e8f0; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">註冊新帳號</button>
             </div>
         </div>
 
         <!-- 驗證中狀態 -->
-        <div id="login-loading-state" class="hidden text-center text-sm text-yellow-400 font-bold py-4">
-            <div class="animate-spin inline-block w-6 h-6 border-[3px] border-current border-t-transparent text-yellow-500 rounded-full mb-2" role="status"></div>
+        <div id="login-loading-state" style="display: none; text-align: center; font-size: 14px; color: #eab308; font-weight: bold; padding: 16px 0;">
+            <div style="width: 24px; height: 24px; border: 3px solid #eab308; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite; margin-bottom: 8px;"></div>
+            <style>
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            </style>
             <div>正在驗證帳密，請稍後...</div>
         </div>
 
-        <div class="text-center text-[10px] text-slate-500 mt-2 border-t border-slate-800 pt-3 leading-relaxed">
+        <div style="text-align: center; font-size: 10px; color: #64748b; margin-top: 8px; border-top: 1px solid #1e293b; padding-top: 12px; line-height: 1.5;">
             * 雲端存檔與此帳號綁定。輸入正確的帳號密碼才能載入對應的角色。
         </div>
       </div>
@@ -616,7 +619,7 @@
 <script src="js/10-ui-tabs.js?v=v3.4.60-relic-text-all"></script>
 <script src="js/11-world-map.js?v=v3.4.57-sherine-mr"></script>
 <script src="js/12-npc-quests.js?v=v3.4.30-pledge-portrait"></script>
-<script src="js/13-shop-save.js?v=v3.4.61-load-enter-cloudsync3"></script>
+<script src="js/13-shop-save.js?v=v3.4.61-load-enter-cloudsync4"></script>
 <script src="js/14-craft-pandora.js?v=v3.4.12-soulearrings"></script>
 <script src="js/15-cards.js?v=v3.2.64-8dircodex"></script>
 <script src="js/16-equip-book.js?v=v3.2.37-petgear"></script>
