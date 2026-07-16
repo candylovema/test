@@ -1,12 +1,12 @@
-// ===== PC版全浮動式、拖曳記憶 UI 系統 =====
+// ===== PC版全浮動式、拖曳與縮放記憶 UI 系統 =====
 (function () {
     const el = id => document.getElementById(id);
 
-    // 注入 PC 版浮動 UI 的專用樣式
+    // 注入 PC 版浮動與縮放 UI 的專用樣式
     const style = document.createElement('style');
     style.textContent = `
         @media (min-width: 769px) {
-            /* 使左、中、右及日誌列在 PC 上變成浮動式視窗 */
+            /* 使左、中、右及日誌列在 PC 上變成可縮放的浮動式視窗 */
             #col-left, #col-right, #log-row {
                 position: fixed !important;
                 margin: 0 !important;
@@ -15,24 +15,37 @@
                 border: 2px solid #8d6846 !important;
                 border-radius: 6px !important;
                 background: #111318 !important;
-                overflow: hidden !important;
                 display: flex !important;
                 flex-direction: column !important;
+                resize: both !important;
+                overflow: hidden !important;
             }
             
             #col-left {
-                width: 340px !important;
-                height: auto !important;
+                width: 340px;
+                height: 720px;
+                min-width: 280px !important;
+                min-height: 250px !important;
+                max-width: 600px !important;
+                max-height: 95vh !important;
             }
             
             #col-right {
-                width: 380px !important;
-                height: 680px !important;
+                width: 380px;
+                height: 680px;
+                min-width: 320px !important;
+                min-height: 350px !important;
+                max-width: 800px !important;
+                max-height: 95vh !important;
             }
             
             #log-row {
-                width: 800px !important;
-                height: 250px !important;
+                width: 800px;
+                height: 250px;
+                min-width: 400px !important;
+                min-height: 150px !important;
+                max-width: 1600px !important;
+                max-height: 80vh !important;
             }
             
             #combat-log-panel, #syslog-panel {
@@ -40,6 +53,29 @@
                 height: 100% !important;
                 border: none !important;
                 background: transparent !important;
+                min-height: 0 !important;
+            }
+            
+            #status-panel {
+                flex: 0 0 auto !important;
+            }
+            
+            #squad-panel {
+                flex: 1 1 0 !important;
+                min-height: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+            
+            #squad-tab-team, #squad-tab-skill {
+                flex: 1 1 0 !important;
+                overflow-y: auto !important;
+            }
+
+            #tab-content-panel {
+                flex: 1 1 0 !important;
+                min-height: 0 !important;
+                height: auto !important;
             }
             
             /* 拖曳握把條 */
@@ -69,6 +105,16 @@
                 pointer-events: none;
             }
             
+            /* 自訂原生縮放角把手外觀 */
+            #col-left::-webkit-resizer,
+            #col-right::-webkit-resizer,
+            #log-row::-webkit-resizer {
+                background-color: #8d6846;
+                border: 1px solid #4a3b32;
+                border-radius: 2px;
+                outline: 1px solid rgba(0,0,0,0.5);
+            }
+            
             /* 調整中央欄的地圖和戰鬥畫面 */
             #col-center {
                 max-width: calc(100% - 760px) !important;
@@ -85,7 +131,6 @@
     document.head.appendChild(style);
 
     function createDragHandle(targetEl, titleText) {
-        // 防止重複建立
         let existing = targetEl.querySelector('.ui-drag-handle');
         if (existing) return existing;
 
@@ -93,7 +138,7 @@
         handle.className = 'ui-drag-handle';
         handle.innerHTML = `
             <span class="ui-drag-title">${titleText}</span>
-            <span class="ui-drag-hint">::: 按住此處拖曳 :::</span>
+            <span class="ui-drag-hint">::: 拖曳此處 / 右下角可縮放 :::</span>
         `;
         targetEl.insertBefore(handle, targetEl.firstChild);
         return handle;
@@ -103,9 +148,8 @@
         const handle = createDragHandle(targetEl, titleText);
         let drag = null;
 
-        function restorePosition() {
+        function restorePositionAndSize() {
             if (innerWidth <= 768) {
-                // 手機版還原預設排版，移除所有 inline styles
                 targetEl.style.removeProperty('position');
                 targetEl.style.removeProperty('left');
                 targetEl.style.removeProperty('top');
@@ -118,16 +162,21 @@
                 return;
             }
 
-            // PC 版浮動配置
             targetEl.style.position = 'fixed';
             
+            // 還原尺寸
+            let savedW = localStorage.getItem(storagePrefix + '_w');
+            let savedH = localStorage.getItem(storagePrefix + '_h');
+            if (savedW !== null) targetEl.style.width = savedW + 'px';
+            if (savedH !== null) targetEl.style.height = savedH + 'px';
+
+            // 還原位置
             let savedX = localStorage.getItem(storagePrefix + '_x');
             let savedY = localStorage.getItem(storagePrefix + '_y');
 
             if (savedX !== null && savedY !== null) {
                 let x = parseFloat(savedX);
                 let y = parseFloat(savedY);
-                // 確保在可視範圍內
                 if (x >= -200 && x < innerWidth && y >= -50 && y < innerHeight) {
                     targetEl.style.left = x + 'px';
                     targetEl.style.top = y + 'px';
@@ -137,7 +186,6 @@
                 }
             }
 
-            // 預設位置
             let x = defaultLeftFn();
             let y = defaultTopFn();
             targetEl.style.left = x + 'px';
@@ -165,7 +213,6 @@
             let targetX = event.clientX - drag.dx;
             let targetY = event.clientY - drag.dy;
 
-            // 防呆限位
             const maxX = innerWidth - 50;
             const maxY = innerHeight - 50;
             targetX = Math.max(-150, Math.min(maxX, targetX));
@@ -188,8 +235,8 @@
         handle.addEventListener('pointerup', stopDrag);
         handle.addEventListener('pointercancel', stopDrag);
 
-        window.addEventListener('resize', restorePosition);
-        restorePosition();
+        window.addEventListener('resize', restorePositionAndSize);
+        restorePositionAndSize();
     }
 
     function init() {
@@ -197,7 +244,6 @@
         const rightCol = el('col-right');
         const logRow = el('log-row');
 
-        // 1. 調整 log-row 結構，使其在 PC 上可以有橫向並排包裹容器
         if (logRow) {
             const combat = el('combat-log-panel');
             const sys = el('syslog-panel');
@@ -212,7 +258,6 @@
             }
         }
 
-        // 2. 將各面板綁定拖曳功能與座標記憶
         if (leftCol) {
             makeElementDraggable(
                 leftCol, 
@@ -242,6 +287,25 @@
                 () => Math.max(16, innerHeight - 250 - 16)
             );
         }
+
+        // 統一在指標放開時，儲存所有視窗的位置與大小（覆蓋拖曳、縮放與邊界改變）
+        window.addEventListener('pointerup', function () {
+            if (innerWidth <= 768) return;
+            
+            [['ui_col_left', 'col-left'], ['ui_col_right', 'col-right'], ['ui_log_row', 'log-row']].forEach(([prefix, id]) => {
+                let target = el(id);
+                if (target) {
+                    const rect = target.getBoundingClientRect();
+                    // 只在合理範圍內儲存，防止極端縮小
+                    if (rect.width > 50 && rect.height > 50) {
+                        localStorage.setItem(prefix + '_x', rect.left);
+                        localStorage.setItem(prefix + '_y', rect.top);
+                        localStorage.setItem(prefix + '_w', rect.width);
+                        localStorage.setItem(prefix + '_h', rect.height);
+                    }
+                }
+            });
+        });
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
