@@ -38,9 +38,13 @@ function getOrCreateSheet(name) {
 // 驗證使用者帳號密碼是否正確
 function verifyUser(usersSheet, username, password) {
   var data = usersSheet.getDataRange().getValues();
+  var uStr = String(username).trim();
+  var pStr = String(password).trim();
   for (var i = 0; i < data.length; i++) {
-    if (data[i][0] === username) {
-      return data[i][1] === password;
+    var sheetUser = String(data[i][0]).trim();
+    var sheetPass = String(data[i][1]).trim();
+    if (sheetUser === uStr) {
+      return sheetPass === pStr;
     }
   }
   return false;
@@ -167,8 +171,9 @@ function doPost(e) {
       }
       
       // 檢查帳號是否重複
+      var uStr = String(username).trim();
       for (var i = 0; i < data.length; i++) {
-        if (data[i][0] === username) {
+        if (String(data[i][0]).trim() === uStr) {
           return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "帳號已存在，請使用其它名稱" }))
                                .setMimeType(ContentService.MimeType.JSON);
         }
@@ -185,8 +190,9 @@ function doPost(e) {
       if (verifyUser(usersSheet, username, password)) {
         // 更新最後登入時間
         var data = usersSheet.getDataRange().getValues();
+        var uStr = String(username).trim();
         for (var i = 0; i < data.length; i++) {
-          if (data[i][0] === username) {
+          if (String(data[i][0]).trim() === uStr) {
             usersSheet.getRange(i + 1, 4).setValue(new Date());
             break;
           }

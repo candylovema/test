@@ -1831,7 +1831,36 @@ async function handleRegisterClick() {
     }
 }
 
-function onLoginSuccess(username, password) {
+async function syncAllCloudSavesToLocal(username, password) {
+    // 1. 先清除本地 1-8 存檔槽位，防止舊帳號資料殘留
+    for (let i = 1; i <= 8; i++) {
+        localStorage.removeItem('lineage_idle_save_' + i);
+    }
+    
+    // 2. 批次從雲端拉取 1-8 槽位的存檔
+    for (let i = 1; i <= 8; i++) {
+        try {
+            let key = 'lineage_idle_save_' + i;
+            let response = await fetch(`${CLOUD_API_URL}?action=load&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&key=${encodeURIComponent(key)}`, {
+                method: 'GET',
+                mode: 'cors'
+            });
+            let resJson = await response.json();
+            if (resJson && resJson.status === 'success' && resJson.data) {
+                localStorage.setItem(key, resJson.data);
+            }
+        } catch (e) {
+            console.error(`[syncAllCloudSavesToLocal] slot ${i} failed`, e);
+        }
+    }
+    
+    // 3. 重新整理角色選擇介面
+    try {
+        renderLoadSelect();
+    } catch(e) {}
+}
+
+async function onLoginSuccess(username, password) {
     showLoginModal(false);
     setLoginLoading(false);
     
@@ -1841,10 +1870,8 @@ function onLoginSuccess(username, password) {
         display.innerText = username;
     }
     
-    // 刷新角色選單
-    try {
-        renderLoadSelect();
-    } catch(e) {}
+    // 同步該帳號的所有雲端存檔到本地
+    await syncAllCloudSavesToLocal(username, password);
 }
 
 function gameLogout() {
