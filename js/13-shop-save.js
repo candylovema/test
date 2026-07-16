@@ -1668,7 +1668,7 @@ function loadGame() {
 }
 
 // ===================== 🔑 帳號密碼登入驗證與雲端對接 =====================
-const CLOUD_API_URL = "https://script.google.com/macros/s/AKfycbwg3SvbNsDk-rJix_dJ2AWNoexGA9jZ0kGXUcr6Dd4pwoyQgjsn6g2icWYKlR1qBaz6lw/exec";
+const CLOUD_API_URL = "https://script.google.com/macros/s/AKfycbyHi830NTScB7dS6iZqB4FQ4dEgLjOvaHCf1eMH2qlSo3k2Mi4Xdmk31s8cFWBALA1wmA/exec";
 
 // 網頁載入時自動執行：初始化登入狀態與自動登入
 (function initLoginSystem() {
