@@ -31,6 +31,19 @@
         if (!frame || !handle || !close) return;
         close.onclick = closeWarehouseWindow;
 
+        // Restore saved position
+        let savedX = localStorage.getItem('wh_window_x');
+        let savedY = localStorage.getItem('wh_window_y');
+        if (savedX !== null && savedY !== null) {
+            let x = parseFloat(savedX);
+            let y = parseFloat(savedY);
+            if (x >= -100 && x < innerWidth && y >= -100 && y < innerHeight) {
+                frame.style.left = x + 'px';
+                frame.style.top = y + 'px';
+                frame.style.transform = 'none';
+            }
+        }
+
         handle.addEventListener('pointerdown', function (event) {
             if (event.target.closest('button, input, select')) return;
             const rect = frame.getBoundingClientRect();
@@ -51,6 +64,10 @@
             if (!drag || drag.id !== event.pointerId) return;
             drag = null;
             frame.classList.remove('is-dragging');
+            
+            const rect = frame.getBoundingClientRect();
+            localStorage.setItem('wh_window_x', rect.left);
+            localStorage.setItem('wh_window_y', rect.top);
         }
         handle.addEventListener('pointerup', stop);
         handle.addEventListener('pointercancel', stop);
