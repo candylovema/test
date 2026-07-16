@@ -34,7 +34,7 @@ const sleep = ms => new Promise(res => setTimeout(res, ms));
 async function fetchCloudSave(username, password) {
   try {
     const slotKey = `lineage_idle_save_1`;
-    const url = `${GAS_API_URL}?action=load&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&key=${encodeURIComponent(slotKey)}`;
+    const url = `${GAS_API_URL}?action=load&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&key=${encodeURIComponent(slotKey)}&_cb=${Date.now()}`;
     const response = await axios.get(url);
     if (response.data && response.data.status === 'success') {
       return response.data.data;
@@ -250,7 +250,7 @@ async function run() {
   const syncBotsList = async () => {
     try {
       console.log('🔄 [排程器] 正在從 GAS 撈取雲端掛機帳號清單...');
-      const response = await axios.get(`${GAS_API_URL}?action=get_all_active_bots&secret=${encodeURIComponent(GAME_SECRET)}`);
+      const response = await axios.get(`${GAS_API_URL}?action=get_all_active_bots&secret=${encodeURIComponent(GAME_SECRET)}&_cb=${Date.now()}`);
       
       if (response.data && response.data.status === 'success') {
         const bots = response.data.bots || [];

@@ -372,6 +372,33 @@
         requestAnimationFrame(fitEquipmentWindowToViewport);
     };
 
+    function restoreSavedPosition() {
+        const frame = el('equipment-window-frame');
+        if (!frame) return;
+        
+        let savedX = localStorage.getItem('eq_window_x');
+        let savedY = localStorage.getItem('eq_window_y');
+        
+        if (savedX !== null && savedY !== null) {
+            let x = parseFloat(savedX);
+            let y = parseFloat(savedY);
+            if (x >= -100 && x < innerWidth && y >= -100 && y < innerHeight) {
+                frame.style.left = x + 'px';
+                frame.style.top = y + 'px';
+                frame.style.transform = 'none';
+                return;
+            }
+        }
+        
+        // 預設位置：置於畫面中間偏右
+        const defaultLeft = Math.round(innerWidth * 0.5 - frame.offsetWidth * 0.5 + 100);
+        const defaultTop = Math.round(innerHeight * 0.5 - frame.offsetHeight * 0.5);
+        
+        frame.style.left = Math.max(10, Math.min(innerWidth - frame.offsetWidth - 10, defaultLeft)) + 'px';
+        frame.style.top = Math.max(10, Math.min(innerHeight - frame.offsetHeight - 10, defaultTop)) + 'px';
+        frame.style.transform = 'none';
+    }
+
     function fitEquipmentWindowToViewport() {
         const frame = el('equipment-window-frame');
         const win = el('equipment-window');
@@ -405,16 +432,8 @@
             frame.classList.remove('side-open');
             return;
         }
-        const rect = frame.getBoundingClientRect();
-        const side = frame.classList.contains('side-open') ? el('equipment-side-panel') : null;
-        const sideWidth = side && !side.classList.contains('hidden') ? side.getBoundingClientRect().width + 8 : 0;
-        const totalWidth = rect.width + sideWidth;
-        let left = rect.left, top = rect.top;
-        left = Math.max(4, Math.min(left, innerWidth - totalWidth - 4));
-        top = Math.max(4, Math.min(top, innerHeight - rect.height - 4));
-        frame.style.left = left + 'px';
-        frame.style.top = top + 'px';
-        frame.style.transform = 'none';
+        
+        restoreSavedPosition();
     }
 
     window.refreshEquipmentWindow = function () {
@@ -431,27 +450,43 @@
         const win = el('equipment-window');
         if (!win) return;
         const host = el('tab-content-panel');
+        const shouldEmbed = innerWidth <= 768;
+        
         if (host) {
-            host.classList.toggle('equipment-panel-host', visible);
-            if (!visible || innerWidth > 768) host.style.removeProperty('--equipment-panel-height');
+            host.classList.toggle('equipment-panel-host', visible && shouldEmbed);
+            if (!visible || !shouldEmbed) host.style.removeProperty('--equipment-panel-height');
             else host.style.setProperty('--equipment-panel-height', Math.ceil(Math.min(host.getBoundingClientRect().width, 366) * 408 / 183) + 'px');
         }
-        win.classList.add('equipment-window-embedded');
+        
+        if (shouldEmbed) {
+            win.classList.add('equipment-window-embedded');
+        } else {
+            win.classList.remove('equipment-window-embedded');
+        }
+        
         win.classList.toggle('hidden', !visible);
         win.setAttribute('aria-hidden', visible ? 'false' : 'true');
+        
         if (!visible) return;
-        if (innerWidth <= 768) {
-            const scroller = el('game-screen');
-            if (scroller && host) {
-                const scrollerRect = scroller.getBoundingClientRect();
-                const hostRect = host.getBoundingClientRect();
-                if (hostRect.bottom > scrollerRect.bottom) scroller.scrollTop += hostRect.bottom - scrollerRect.bottom + 8;
-                if (hostRect.top < scrollerRect.top) scroller.scrollTop -= scrollerRect.top - hostRect.top + 8;
+        
+        if (shouldEmbed) {
+            if (innerWidth <= 768) {
+                const scroller = el('game-screen');
+                if (scroller && host) {
+                    const scrollerRect = scroller.getBoundingClientRect();
+                    const hostRect = host.getBoundingClientRect();
+                    if (hostRect.bottom > scrollerRect.bottom) scroller.scrollTop += hostRect.bottom - scrollerRect.bottom + 8;
+                    if (hostRect.top < scrollerRect.top) scroller.scrollTop -= scrollerRect.top - hostRect.top + 8;
+                }
             }
+            closeEquipmentSidePanel();
+            refreshEquipmentWindow();
+            requestAnimationFrame(fitEquipmentWindowToViewport);
+        } else {
+            closeEquipmentSidePanel();
+            refreshEquipmentWindow();
+            requestAnimationFrame(restoreSavedPosition);
         }
-        closeEquipmentSidePanel();
-        refreshEquipmentWindow();
-        requestAnimationFrame(fitEquipmentWindowToViewport);
     };
 
     window.openEquipmentWindow = function () {
@@ -476,7 +511,13 @@
         const handle = el('equipment-window-drag');
         if (!frame || !handle) return;
         const win = el('equipment-window');
-        if (win) win.classList.add('equipment-window-embedded');
+        
+        const shouldEmbed = innerWidth <= 768;
+        if (win) {
+            if (shouldEmbed) win.classList.add('equipment-window-embedded');
+            else win.classList.remove('equipment-window-embedded');
+        }
+        
         const background = frame.querySelector('.equipment-window-bg');
         if (background) {
             background.onerror = function () {
@@ -493,6 +534,7 @@
         el('equipment-window-next').onclick = function () { page = 1; refreshEquipmentWindow(); };
 
         handle.addEventListener('pointerdown', function (event) {
+            if (win.classList.contains('equipment-window-embedded')) return;
             const rect = frame.getBoundingClientRect();
             drag = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top };
             handle.setPointerCapture(event.pointerId);
@@ -513,13 +555,16 @@
             if (!drag || drag.id !== event.pointerId) return;
             drag = null;
             frame.classList.remove('is-dragging');
+            
+            const rect = frame.getBoundingClientRect();
+            localStorage.setItem('eq_window_x', rect.left);
+            localStorage.setItem('eq_window_y', rect.top);
         }
         handle.addEventListener('pointerup', stopDrag);
         handle.addEventListener('pointercancel', stopDrag);
         window.addEventListener('resize', fitEquipmentWindowToViewport);
         const gameScroller = el('game-screen');
         if (gameScroller) gameScroller.addEventListener('scroll', fitEquipmentWindowToViewport, { passive: true });
-        // 純顯示更新：讓卷軸到期、重新變身或套裝切換能即時反映，不改動任何變身判定。
         window.setInterval(function () {
             const win = el('equipment-window');
             if (win && !win.classList.contains('hidden')) renderMorphSnapshot();

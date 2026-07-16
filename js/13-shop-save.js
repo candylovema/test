@@ -1841,7 +1841,7 @@ async function syncAllCloudSavesToLocal(username, password) {
     for (let i = 1; i <= 8; i++) {
         try {
             let key = 'lineage_idle_save_' + i;
-            let response = await fetch(`${CLOUD_API_URL}?action=load&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&key=${encodeURIComponent(key)}`, {
+            let response = await fetch(`${CLOUD_API_URL}?action=load&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&key=${encodeURIComponent(key)}&_cb=${Date.now()}`, {
                 method: 'GET',
                 mode: 'cors'
             });
