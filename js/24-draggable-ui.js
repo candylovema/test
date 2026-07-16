@@ -103,8 +103,18 @@
             #battle-view.area-fit:not(.hidden) {
                 width: 100% !important;
                 max-width: 100% !important;
+                height: auto !important;
+                aspect-ratio: 16 / 9 !important;
                 flex: 1 1 auto !important;
                 min-height: 0 !important;
+                align-self: center !important;
+            }
+            
+            /* 讓怪物列表的高度隨戰鬥地圖寬度等比例放大，解決縮放後怪變小隻的問題 */
+            #battle-view.area-fit #mob-list,
+            #battle-view.area-fit #mob-list:has(.boss-slot),
+            #battle-view.area-fit #mob-list:has(.mob-back) {
+                height: 56% !important;
             }
             
             #town-view {
@@ -170,12 +180,12 @@
         if (typeof refreshEquipmentWindow === 'function') refreshEquipmentWindow();
     };
 
-    function createZoomController() {
-        if (el('game-zoom-controller')) return;
-        
-        const controller = document.createElement('div');
-        controller.id = 'game-zoom-controller';
-        controller.style.cssText = `
+    function createControlPanel() {
+        if (el('game-control-panel')) return;
+
+        const panel = document.createElement('div');
+        panel.id = 'game-control-panel';
+        panel.style.cssText = `
             position: fixed;
             top: 6px;
             left: 6px;
@@ -183,115 +193,117 @@
             background: rgba(20, 22, 28, 0.95);
             border: 1px solid #8d6846;
             border-radius: 4px;
-            padding: 4px 8px;
             display: flex;
             align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: #fde68a;
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
             font-family: sans-serif;
             pointer-events: auto;
+            user-select: none;
         `;
-        
-        controller.innerHTML = `
-            <span style="font-weight:bold;pointer-events:none;">🔍 畫面縮放</span>
-            <button id="game-zoom-minus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">-</button>
-            <input id="game-zoom-slider" type="range" min="0.5" max="1.5" step="0.05" value="1" style="width:70px;margin:0;cursor:pointer;">
-            <button id="game-zoom-plus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">+</button>
-            <span id="game-zoom-val" style="min-width:34px;text-align:right;font-weight:bold;pointer-events:none;">100%</span>
-            <button id="game-zoom-reset" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-size:10px;">1:1</button>
+
+        panel.innerHTML = `
+            <div id="game-control-drag" style="cursor:move; padding: 6px 8px; display:flex; align-items:center; background:linear-gradient(180deg, #4a3b32, #2d241e); color:#fde68a; font-weight:bold; font-size:12px; border-right:1px solid #8d6846; border-radius:3px 0 0 3px; height:100%; min-height:28px;">☰ 拖曳</div>
+            <div style="display:flex; align-items:center; gap:8px; padding: 4px 10px;">
+                <span style="font-weight:bold; pointer-events:none; font-size:12px; color:#fde68a;">🔍 畫面縮放</span>
+                <button id="game-zoom-minus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">-</button>
+                <input id="game-zoom-slider" type="range" min="0.5" max="1.5" step="0.05" value="1" style="width:70px;margin:0;cursor:pointer;">
+                <button id="game-zoom-plus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">+</button>
+                <span id="game-zoom-val" style="min-width:34px;text-align:right;font-weight:bold;pointer-events:none;color:#fde68a;font-size:12px;">100%</span>
+                <button id="game-zoom-reset" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-size:10px;">1:1</button>
+                <span style="color:#8d6846; margin:0 4px; pointer-events:none;">|</span>
+                <button id="dock-btn-col-left" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;">👤 狀態</button>
+                <button id="dock-btn-col-center" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;">🗺️ 地圖</button>
+                <button id="dock-btn-col-right" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;">🎒 背包</button>
+                <button id="dock-btn-log-row" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;">📜 日誌</button>
+            </div>
         `;
-        
-        document.body.appendChild(controller);
-        
+
+        document.body.appendChild(panel);
+
+        // 還原主控制面板位置
+        function restoreControlPanelPosition() {
+            let x = localStorage.getItem('ui_control_panel_x');
+            let y = localStorage.getItem('ui_control_panel_y');
+            if (x !== null && y !== null) {
+                panel.style.left = x + 'px';
+                panel.style.top = y + 'px';
+            } else {
+                panel.style.left = '6px';
+                panel.style.top = '6px';
+            }
+        }
+        restoreControlPanelPosition();
+
+        // 綁定拖曳功能
+        const dragHandle = el('game-control-drag');
+        let drag = null;
+        dragHandle.onpointerdown = function (e) {
+            const rect = panel.getBoundingClientRect();
+            drag = {
+                id: e.pointerId,
+                dx: e.clientX - rect.left,
+                dy: e.clientY - rect.top
+            };
+            dragHandle.setPointerCapture(e.pointerId);
+            e.preventDefault();
+        };
+        dragHandle.onpointermove = function (e) {
+            if (!drag || drag.id !== e.pointerId) return;
+            let tx = e.clientX - drag.dx;
+            let ty = e.clientY - drag.dy;
+            panel.style.left = Math.max(0, Math.min(innerWidth - 100, tx)) + 'px';
+            panel.style.top = Math.max(0, Math.min(innerHeight - 30, ty)) + 'px';
+        };
+        function stopDrag(e) {
+            if (!drag || drag.id !== e.pointerId) return;
+            drag = null;
+            localStorage.setItem('ui_control_panel_x', panel.offsetLeft);
+            localStorage.setItem('ui_control_panel_y', panel.offsetTop);
+        }
+        dragHandle.onpointerup = stopDrag;
+        dragHandle.onpointercancel = stopDrag;
+
+        // 縮放按鈕邏輯
         const slider = el('game-zoom-slider');
         const plus = el('game-zoom-plus');
         const minus = el('game-zoom-minus');
         const reset = el('game-zoom-reset');
-        
+
         slider.oninput = function () {
             applyGameScale(parseFloat(this.value));
         };
-        
         plus.onclick = function () {
             let val = Math.min(1.5, parseFloat(slider.value) + 0.05);
             applyGameScale(val);
         };
-        
         minus.onclick = function () {
             let val = Math.max(0.5, parseFloat(slider.value) - 0.05);
             applyGameScale(val);
         };
-        
         reset.onclick = function () {
             applyGameScale(1.0);
         };
-        
-        let savedScale = localStorage.getItem('game_scale');
-        if (savedScale !== null) {
-            applyGameScale(parseFloat(savedScale));
-        } else {
-            applyGameScale(1.0);
-        }
-    }
 
-    // 建立 PC 視窗工作列（Dock）
-    function createWindowsDock() {
-        if (el('ui-windows-dock')) return;
-
-        const dock = document.createElement('div');
-        dock.id = 'ui-windows-dock';
-        dock.style.cssText = `
-            position: fixed;
-            top: 6px;
-            left: 200px;
-            z-index: 100;
-            background: rgba(20, 22, 28, 0.95);
-            border: 1px solid #8d6846;
-            border-radius: 4px;
-            padding: 4px 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            pointer-events: auto;
-        `;
-
+        // 工作列按鈕邏輯
         const configs = [
-            { id: 'col-left', name: '👤 狀態', key: 'ui_col_left' },
-            { id: 'col-center', name: '🗺️ 地圖', key: 'ui_col_center' },
-            { id: 'col-right', name: '🎒 背包', key: 'ui_col_right' },
-            { id: 'log-row', name: '📜 日誌', key: 'ui_log_row' }
+            { id: 'col-left', btnId: 'dock-btn-col-left', key: 'ui_col_left' },
+            { id: 'col-center', btnId: 'dock-btn-col-center', key: 'ui_col_center' },
+            { id: 'col-right', btnId: 'dock-btn-col-right', key: 'ui_col_right' },
+            { id: 'log-row', btnId: 'dock-btn-log-row', key: 'ui_log_row' }
         ];
 
         configs.forEach(c => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.id = `dock-btn-${c.id}`;
-            btn.style.cssText = `
-                background: #4a3b32;
-                border: 1px solid #8d6846;
-                color: #fde68a;
-                padding: 2px 6px;
-                border-radius: 3px;
-                cursor: pointer;
-                font-size: 11px;
-                font-weight: bold;
-                transition: all 0.15s ease;
-            `;
-            btn.textContent = c.name;
-            btn.onclick = () => toggleWindowMinimize(c.id, c.key);
-            dock.appendChild(btn);
+            const btn = el(c.btnId);
+            if (btn) {
+                btn.onclick = () => toggleWindowMinimize(c.id, c.key);
+            }
         });
 
-        document.body.appendChild(dock);
-
-        // 根據存檔狀態初始化按鈕樣式與視窗顯示狀態
+        // 載入與初始化視窗收合狀態
         configs.forEach(c => {
             let isMin = localStorage.getItem(c.key + '_minimized') === '1';
             let target = el(c.id);
-            let btn = el(`dock-btn-${c.id}`);
+            let btn = el(c.btnId);
             if (target && btn) {
                 target.classList.toggle('ui-minimized', isMin);
                 btn.style.opacity = isMin ? '0.5' : '1';
@@ -300,22 +312,32 @@
                 btn.style.color = isMin ? '#8d6846' : '#fde68a';
             }
         });
+
+        // 套用儲存的縮放值
+        let savedScale = localStorage.getItem('game_scale');
+        if (savedScale !== null) {
+            applyGameScale(parseFloat(savedScale));
+        } else {
+            applyGameScale(1.0);
+        }
     }
 
     function toggleWindowMinimize(id, key) {
         const target = el(id);
-        const btn = el(`dock-btn-${id}`);
-        if (!target || !btn) return;
+        const btn = el(`dock-btn-${id}`) || el(`dock-btn-col-log-row`); // 相容舊版名稱
+        const exactBtn = el(id === 'col-left' ? 'dock-btn-col-left' : (id === 'col-center' ? 'dock-btn-col-center' : (id === 'col-right' ? 'dock-btn-col-right' : 'dock-btn-log-row')));
+        
+        if (!target || !exactBtn) return;
 
         const isMin = !target.classList.contains('ui-minimized');
         target.classList.toggle('ui-minimized', isMin);
         
         localStorage.setItem(key + '_minimized', isMin ? '1' : '0');
 
-        btn.style.opacity = isMin ? '0.5' : '1';
-        btn.style.background = isMin ? '#1c1512' : '#4a3b32';
-        btn.style.borderColor = isMin ? '#4a3b32' : '#8d6846';
-        btn.style.color = isMin ? '#8d6846' : '#fde68a';
+        exactBtn.style.opacity = isMin ? '0.5' : '1';
+        exactBtn.style.background = isMin ? '#1c1512' : '#4a3b32';
+        exactBtn.style.borderColor = isMin ? '#4a3b32' : '#8d6846';
+        exactBtn.style.color = isMin ? '#8d6846' : '#fde68a';
     }
 
     function createDragHandle(targetEl, titleText, onMinimizeClick) {
@@ -446,9 +468,8 @@
         const rightCol = el('col-right');
         const logRow = el('log-row');
 
-        // 1. 創立畫面縮放控制器與工作列（Dock）
-        createZoomController();
-        createWindowsDock();
+        // 1. 建立整合控制台 (包含縮放與視窗 Dock)
+        createControlPanel();
 
         if (logRow) {
             const combat = el('combat-log-panel');
