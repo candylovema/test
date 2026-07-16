@@ -11,7 +11,7 @@
         
         @media (min-width: 769px) {
             /* 使左、中、右及日誌列在 PC 上變成可縮放的浮動式視窗 */
-            #col-left, #col-right, #log-row {
+            #col-left, #col-center, #col-right, #log-row {
                 position: fixed !important;
                 margin: 0 !important;
                 z-index: 45 !important;
@@ -30,26 +30,27 @@
                 height: 720px;
                 min-width: 280px !important;
                 min-height: 250px !important;
-                max-width: 600px !important;
-                max-height: 95vh !important;
+            }
+            
+            #col-center {
+                width: 820px;
+                height: 560px;
+                min-width: 450px !important;
+                min-height: 300px !important;
             }
             
             #col-right {
                 width: 380px;
-                height: 680px;
+                height: 720px;
                 min-width: 320px !important;
-                min-height: 350px !important;
-                max-width: 800px !important;
-                max-height: 95vh !important;
+                min-height: 250px !important;
             }
             
             #log-row {
-                width: 800px;
+                width: 820px;
                 height: 250px;
                 min-width: 400px !important;
                 min-height: 150px !important;
-                max-width: 1600px !important;
-                max-height: 80vh !important;
             }
             
             #combat-log-panel, #syslog-panel {
@@ -82,6 +83,30 @@
                 height: auto !important;
             }
             
+            #map-view-panel {
+                width: 100% !important;
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 0 !important;
+                border: none !important;
+                background: transparent !important;
+            }
+            
+            #battle-view.area-fit:not(.hidden) {
+                width: 100% !important;
+                max-width: 100% !important;
+                flex: 1 1 auto !important;
+                min-height: 0 !important;
+            }
+            
+            #town-view {
+                width: 100% !important;
+                height: 100% !important;
+                flex: 1 1 auto !important;
+                min-height: 0 !important;
+            }
+            
             /* 拖曳握把條 */
             .ui-drag-handle {
                 height: 28px;
@@ -111,24 +136,13 @@
             
             /* 自訂原生縮放角把手外觀 */
             #col-left::-webkit-resizer,
+            #col-center::-webkit-resizer,
             #col-right::-webkit-resizer,
             #log-row::-webkit-resizer {
                 background-color: #8d6846;
                 border: 1px solid #4a3b32;
                 border-radius: 2px;
                 outline: 1px solid rgba(0,0,0,0.5);
-            }
-            
-            /* 調整中央欄的地圖和戰鬥畫面 */
-            #col-center {
-                max-width: calc(100% - 760px) !important;
-                margin: 0 auto !important;
-                flex: 1 1 auto !important;
-                z-index: 10 !important;
-            }
-            
-            #map-view-panel {
-                margin: 0 auto !important;
             }
         }
     `;
@@ -335,6 +349,7 @@
 
     function init() {
         const leftCol = el('col-left');
+        const centerCol = el('col-center');
         const rightCol = el('col-right');
         const logRow = el('log-row');
 
@@ -367,6 +382,16 @@
             );
         }
 
+        if (centerCol) {
+            makeElementDraggable(
+                centerCol,
+                '🗺️ 冒險地圖',
+                'ui_col_center',
+                () => Math.max(16, Math.round((innerWidth / currentScale) * 0.5 - 410)),
+                () => 16
+            );
+        }
+
         if (rightCol) {
             makeElementDraggable(
                 rightCol, 
@@ -382,7 +407,7 @@
                 logRow, 
                 '📜 遊戲日誌', 
                 'ui_log_row',
-                () => Math.max(16, Math.round((innerWidth / currentScale) * 0.5 - 400)),
+                () => Math.max(16, Math.round((innerWidth / currentScale) * 0.5 - 410)),
                 () => Math.max(16, (innerHeight / currentScale) - 250 - 16)
             );
         }
@@ -391,7 +416,7 @@
         window.addEventListener('pointerup', function () {
             if (innerWidth <= 768) return;
             
-            [['ui_col_left', 'col-left'], ['ui_col_right', 'col-right'], ['ui_log_row', 'log-row']].forEach(([prefix, id]) => {
+            [['ui_col_left', 'col-left'], ['ui_col_center', 'col-center'], ['ui_col_right', 'col-right'], ['ui_log_row', 'log-row']].forEach(([prefix, id]) => {
                 let target = el(id);
                 if (target) {
                     let x = target.offsetLeft;
