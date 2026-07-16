@@ -1285,12 +1285,9 @@ function saveGame() {
     if(typeof petRosterSave === 'function' && !petRosterSave()) throw new Error('pet roster write failed');
     logSys(`遊戲進度已儲存。`);
     
-    // ☁️ 自動同步雲端
+    // ☁️ 自動同步雲端（恆常開啟）
     try {
-        let autoSyncInput = document.getElementById('cloud-auto-sync');
-        if (autoSyncInput && autoSyncInput.checked) {
-            cloudSaveGame(true); // 靜默上傳
-        }
+        cloudSaveGame(true); // 靜默上傳
     } catch(e) {}
     
     _saveFailureNotified = false;

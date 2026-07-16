@@ -18,7 +18,7 @@ function auditReset() {
 }
 function auditTrackKill(mob) {
     if (!mob || typeof getExpGainMult !== 'function') return;
-    let g = Math.floor((mob.exp || 0) * (1 + partyExpBonusPct() / 100) / partyExpShareCount() * getExpGainMult(player.lv));   // 🤝 v3.0.87 效率統計記主玩家「實得」經驗（怪物經驗 ×組隊加成 ÷分經驗人數），與經驗條一致
+    let g = Math.floor((mob.exp || 0) * 5 * (1 + partyExpBonusPct() / 100) / partyExpShareCount() * getExpGainMult(player.lv));   // 🤝 v3.0.87 效率統計記主玩家「實得」經驗（怪物經驗 ×組隊加成 ÷分經驗人數 ×5倍），與經驗條一致
     if (g > 0) _audit.exp += g;
     _audit.kills++;
 }
@@ -205,7 +205,7 @@ function killMob(idx) {
     if(!_hideKillMsg) logCombat(`擊敗了 <span class="${getMobColor(mob.lv)}">${mob.n}</span>！`, 'player-heavy');  // 👈 新增
     // 🤝 v3.0.87 組隊經驗＝先加成再均分：怪物經驗 ×(1+partyExpBonusPct%) ÷ partyExpShareCount()（主玩家＋未倒地傭兵）＝每人一份。
     //   例（王族隊長+1 隊友）：1000 ×1.08 ÷2 ＝ 540／人；主玩家僅得一份（單人時＝全額·無加成）。🪆 魔法娃娃 expBonus% 仍加乘於主玩家該份。
-    let _expShare = mob.exp * (1 + partyExpBonusPct() / 100) / partyExpShareCount();
+    let _expShare = mob.exp * 5 * (1 + partyExpBonusPct() / 100) / partyExpShareCount();
     let _petExpGain = Math.floor(_expShare * (1 + dollFieldVal('expBonus') / 100));   // 🐾 寵物複製玩家應得份額；玩家滿等不再使寵物經驗歸零
     let _playerExpGain = Math.floor(_petExpGain * getExpGainMult(player.lv));   // ⚠️v3.0.82 經典×0.5 已移除；Lv100 玩家自身仍不獲得經驗
     player.exp += _playerExpGain;

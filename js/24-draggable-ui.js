@@ -25,6 +25,13 @@
                 overflow: hidden !important;
             }
             
+            #col-left.ui-minimized,
+            #col-center.ui-minimized,
+            #col-right.ui-minimized,
+            #log-row.ui-minimized {
+                display: none !important;
+            }
+            
             #col-left {
                 width: 340px;
                 height: 720px;
@@ -125,12 +132,6 @@
             }
             
             .ui-drag-handle .ui-drag-title {
-                pointer-events: none;
-            }
-            
-            .ui-drag-handle .ui-drag-hint {
-                font-size: 10px;
-                opacity: 0.6;
                 pointer-events: none;
             }
             
@@ -235,7 +236,89 @@
         }
     }
 
-    function createDragHandle(targetEl, titleText) {
+    // 建立 PC 視窗工作列（Dock）
+    function createWindowsDock() {
+        if (el('ui-windows-dock')) return;
+
+        const dock = document.createElement('div');
+        dock.id = 'ui-windows-dock';
+        dock.style.cssText = `
+            position: fixed;
+            top: 6px;
+            left: 200px;
+            z-index: 100;
+            background: rgba(20, 22, 28, 0.95);
+            border: 1px solid #8d6846;
+            border-radius: 4px;
+            padding: 4px 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            pointer-events: auto;
+        `;
+
+        const configs = [
+            { id: 'col-left', name: '👤 狀態', key: 'ui_col_left' },
+            { id: 'col-center', name: '🗺️ 地圖', key: 'ui_col_center' },
+            { id: 'col-right', name: '🎒 背包', key: 'ui_col_right' },
+            { id: 'log-row', name: '📜 日誌', key: 'ui_log_row' }
+        ];
+
+        configs.forEach(c => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.id = `dock-btn-${c.id}`;
+            btn.style.cssText = `
+                background: #4a3b32;
+                border: 1px solid #8d6846;
+                color: #fde68a;
+                padding: 2px 6px;
+                border-radius: 3px;
+                cursor: pointer;
+                font-size: 11px;
+                font-weight: bold;
+                transition: all 0.15s ease;
+            `;
+            btn.textContent = c.name;
+            btn.onclick = () => toggleWindowMinimize(c.id, c.key);
+            dock.appendChild(btn);
+        });
+
+        document.body.appendChild(dock);
+
+        // 根據存檔狀態初始化按鈕樣式與視窗顯示狀態
+        configs.forEach(c => {
+            let isMin = localStorage.getItem(c.key + '_minimized') === '1';
+            let target = el(c.id);
+            let btn = el(`dock-btn-${c.id}`);
+            if (target && btn) {
+                target.classList.toggle('ui-minimized', isMin);
+                btn.style.opacity = isMin ? '0.5' : '1';
+                btn.style.background = isMin ? '#1c1512' : '#4a3b32';
+                btn.style.borderColor = isMin ? '#4a3b32' : '#8d6846';
+                btn.style.color = isMin ? '#8d6846' : '#fde68a';
+            }
+        });
+    }
+
+    function toggleWindowMinimize(id, key) {
+        const target = el(id);
+        const btn = el(`dock-btn-${id}`);
+        if (!target || !btn) return;
+
+        const isMin = !target.classList.contains('ui-minimized');
+        target.classList.toggle('ui-minimized', isMin);
+        
+        localStorage.setItem(key + '_minimized', isMin ? '1' : '0');
+
+        btn.style.opacity = isMin ? '0.5' : '1';
+        btn.style.background = isMin ? '#1c1512' : '#4a3b32';
+        btn.style.borderColor = isMin ? '#4a3b32' : '#8d6846';
+        btn.style.color = isMin ? '#8d6846' : '#fde68a';
+    }
+
+    function createDragHandle(targetEl, titleText, onMinimizeClick) {
         let existing = targetEl.querySelector('.ui-drag-handle');
         if (existing) return existing;
 
@@ -243,14 +326,24 @@
         handle.className = 'ui-drag-handle';
         handle.innerHTML = `
             <span class="ui-drag-title">${titleText}</span>
-            <span class="ui-drag-hint">::: 拖曳此處 / 右下角可縮放 :::</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span class="ui-drag-hint" style="font-size:10px;opacity:0.6;pointer-events:none;">::: 拖曳此處 / 右下角可縮放 :::</span>
+                <button class="ui-minimize-btn" type="button" title="最小化" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:0px 6px;font-size:11px;line-height:1.4;border-radius:3px;cursor:pointer;font-weight:bold;">⚊</button>
+            </div>
         `;
+        
+        const minBtn = handle.querySelector('.ui-minimize-btn');
+        minBtn.onclick = function (e) {
+            e.stopPropagation();
+            onMinimizeClick();
+        };
+
         targetEl.insertBefore(handle, targetEl.firstChild);
         return handle;
     }
 
-    function makeElementDraggable(targetEl, titleText, storagePrefix, defaultLeftFn, defaultTopFn) {
-        const handle = createDragHandle(targetEl, titleText);
+    function makeElementDraggable(targetEl, titleText, storagePrefix, defaultLeftFn, defaultTopFn, onMinimizeClick) {
+        const handle = createDragHandle(targetEl, titleText, onMinimizeClick);
         let drag = null;
 
         function restorePositionAndSize() {
@@ -353,8 +446,9 @@
         const rightCol = el('col-right');
         const logRow = el('log-row');
 
-        // 1. 創立畫面縮放控制器
+        // 1. 創立畫面縮放控制器與工作列（Dock）
         createZoomController();
+        createWindowsDock();
 
         if (logRow) {
             const combat = el('combat-log-panel');
@@ -378,7 +472,8 @@
                 '👤 角色狀態', 
                 'ui_col_left',
                 () => 16,
-                () => 16
+                () => 16,
+                () => toggleWindowMinimize('col-left', 'ui_col_left')
             );
         }
 
@@ -388,7 +483,8 @@
                 '🗺️ 冒險地圖',
                 'ui_col_center',
                 () => Math.max(16, Math.round((innerWidth / currentScale) * 0.5 - 410)),
-                () => 16
+                () => 16,
+                () => toggleWindowMinimize('col-center', 'ui_col_center')
             );
         }
 
@@ -398,7 +494,8 @@
                 '🎒 角色背包與功能', 
                 'ui_col_right',
                 () => Math.max(16, (innerWidth / currentScale) - 380 - 16),
-                () => 16
+                () => 16,
+                () => toggleWindowMinimize('col-right', 'ui_col_right')
             );
         }
 
@@ -408,7 +505,8 @@
                 '📜 遊戲日誌', 
                 'ui_log_row',
                 () => Math.max(16, Math.round((innerWidth / currentScale) * 0.5 - 410)),
-                () => Math.max(16, (innerHeight / currentScale) - 250 - 16)
+                () => Math.max(16, (innerHeight / currentScale) - 250 - 16),
+                () => toggleWindowMinimize('log-row', 'ui_log_row')
             );
         }
 
