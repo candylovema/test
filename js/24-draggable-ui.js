@@ -153,6 +153,39 @@
             border-radius: 2px;
             outline: 1px solid rgba(0,0,0,0.5);
         }
+        
+        /* 直立版控制面板專用樣式 */
+        #game-control-panel.control-panel-vertical {
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+        
+        #game-control-panel.control-panel-vertical .control-panel-content {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 10px !important;
+            padding: 8px 10px !important;
+            border-top: 1px solid #8d6846 !important;
+        }
+        
+        #game-control-panel.control-panel-vertical .control-panel-divider {
+            display: none !important;
+        }
+        
+        #game-control-panel.control-panel-vertical .zoom-row {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: 6px !important;
+        }
+        
+        #game-control-panel.control-panel-vertical .dock-row {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 6px !important;
+            width: 100% !important;
+        }
     `;
     document.head.appendChild(style);
 
@@ -224,14 +257,38 @@
         if (!panel) return;
         
         const isCollapsed = localStorage.getItem('ui_control_panel_collapsed') === '1';
+        const isVertical = localStorage.getItem('ui_control_panel_vertical') === '1';
+        
         const contentDiv = panel.querySelector('.control-panel-content');
         const toggleBtn = el('game-control-toggle');
         
         if (contentDiv && toggleBtn) {
             contentDiv.style.display = isCollapsed ? 'none' : 'flex';
-            toggleBtn.textContent = isCollapsed ? '▶ 展開' : '◀ 收折';
-            toggleBtn.style.borderRadius = isCollapsed ? '0 3px 3px 0' : '0';
+            
+            if (isVertical) {
+                toggleBtn.textContent = isCollapsed ? '▼ 展開' : '▲ 收折';
+                toggleBtn.style.borderRadius = '0 3px 3px 0';
+            } else {
+                toggleBtn.textContent = isCollapsed ? '▶ 展開' : '◀ 收折';
+                toggleBtn.style.borderRadius = isCollapsed ? '0 3px 3px 0' : '0';
+            }
         }
+    }
+
+    function toggleControlPanelOrientation() {
+        const isVertical = localStorage.getItem('ui_control_panel_vertical') === '1';
+        localStorage.setItem('ui_control_panel_vertical', isVertical ? '0' : '1');
+        applyControlPanelLayout();
+    }
+
+    function applyControlPanelLayout() {
+        const panel = el('game-control-panel');
+        if (!panel) return;
+        
+        const isVertical = localStorage.getItem('ui_control_panel_vertical') === '1';
+        panel.classList.toggle('control-panel-vertical', isVertical);
+        
+        applyControlPanelCollapseState();
     }
 
     function createControlPanel() {
@@ -256,20 +313,27 @@
         `;
 
         panel.innerHTML = `
-            <div id="game-control-drag" style="cursor:move; padding: 6px 8px; display:flex; align-items:center; background:linear-gradient(180deg, #4a3b32, #2d241e); color:#fde68a; font-weight:bold; font-size:12px; border-right:1px solid #8d6846; border-radius:3px 0 0 3px; height:100%; min-height:28px;">☰ 拖曳</div>
-            <button id="game-control-toggle" type="button" style="background:#8d6846;border:1px solid #4a3b32;color:#fff;padding:2px 8px;cursor:pointer;font-size:11px;font-weight:bold;height:100%;min-height:28px;transition:all 0.15s ease;">◀ 收折</button>
+            <div class="control-panel-header" style="display:flex; align-items:center; height:100%; min-height:28px;">
+                <div id="game-control-drag" style="cursor:move; padding: 6px 8px; display:flex; align-items:center; background:linear-gradient(180deg, #4a3b32, #2d241e); color:#fde68a; font-weight:bold; font-size:12px; border-right:1px solid #8d6846; border-radius:3px 0 0 3px; height:100%; min-height:28px; white-space:nowrap;">☰ 拖曳</div>
+                <button id="game-control-rotate" type="button" style="background:#4a3b32;border:1px solid #8d6846;border-right:none;color:#fde68a;padding:2px 8px;cursor:pointer;font-size:11px;font-weight:bold;height:100%;min-height:28px;transition:all 0.15s ease;white-space:nowrap;">🔄 旋轉</button>
+                <button id="game-control-toggle" type="button" style="background:#8d6846;border:1px solid #4a3b32;color:#fff;padding:2px 8px;cursor:pointer;font-size:11px;font-weight:bold;height:100%;min-height:28px;transition:all 0.15s ease;white-space:nowrap;">◀ 收折</button>
+            </div>
             <div class="control-panel-content" style="display:flex; align-items:center; gap:8px; padding: 4px 10px;">
-                <span style="font-weight:bold; pointer-events:none; font-size:12px; color:#fde68a;">🔍 畫面縮放</span>
-                <button id="game-zoom-minus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">-</button>
-                <input id="game-zoom-slider" type="range" min="0.5" max="1.5" step="0.05" value="1" style="width:70px;margin:0;cursor:pointer;">
-                <button id="game-zoom-plus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">+</button>
-                <span id="game-zoom-val" style="min-width:34px;text-align:right;font-weight:bold;pointer-events:none;color:#fde68a;font-size:12px;">100%</span>
-                <button id="game-zoom-reset" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-size:10px;">1:1</button>
-                <span style="color:#8d6846; margin:0 4px; pointer-events:none;">|</span>
-                <button id="dock-btn-col-left" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;">👤 狀態</button>
-                <button id="dock-btn-col-center" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;">🗺️ 地圖</button>
-                <button id="dock-btn-col-right" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;">🎒 背包</button>
-                <button id="dock-btn-log-row" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;">📜 日誌</button>
+                <div class="zoom-row" style="display:flex; align-items:center; gap:6px;">
+                    <span style="font-weight:bold; pointer-events:none; font-size:12px; color:#fde68a; white-space:nowrap;">🔍 畫面縮放</span>
+                    <button id="game-zoom-minus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">-</button>
+                    <input id="game-zoom-slider" type="range" min="0.5" max="1.5" step="0.05" value="1" style="width:70px;margin:0;cursor:pointer;">
+                    <button id="game-zoom-plus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">+</button>
+                    <span id="game-zoom-val" style="min-width:34px;text-align:right;font-weight:bold;pointer-events:none;color:#fde68a;font-size:12px;">100%</span>
+                    <button id="game-zoom-reset" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-size:10px;">1:1</button>
+                </div>
+                <span class="control-panel-divider" style="color:#8d6846; margin:0 4px; pointer-events:none;">|</span>
+                <div class="dock-row" style="display:flex; align-items:center; gap:6px;">
+                    <button id="dock-btn-col-left" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;white-space:nowrap;">👤 狀態</button>
+                    <button id="dock-btn-col-center" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;white-space:nowrap;">🗺️ 地圖</button>
+                    <button id="dock-btn-col-right" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;white-space:nowrap;">🎒 背包</button>
+                    <button id="dock-btn-log-row" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:bold;transition:all 0.15s ease;white-space:nowrap;">📜 日誌</button>
+                </div>
             </div>
         `;
 
@@ -318,8 +382,9 @@
         dragHandle.onpointerup = stopDrag;
         dragHandle.onpointercancel = stopDrag;
 
-        // 收折按鈕綁定
+        // 收折與旋轉按鈕綁定
         el('game-control-toggle').onclick = toggleControlPanelCollapse;
+        el('game-control-rotate').onclick = toggleControlPanelOrientation;
 
         // 縮放按鈕邏輯
         const slider = el('game-zoom-slider');
@@ -379,8 +444,8 @@
             applyGameScale(1.0);
         }
 
-        // 初始化收折狀態
-        applyControlPanelCollapseState();
+        // 套用橫直向與收折狀態
+        applyControlPanelLayout();
     }
 
     function toggleWindowMinimize(id, key) {
