@@ -1,159 +1,157 @@
-// ===== PC版全浮動式、拖曳與縮放記憶 UI 系統 =====
+// ===== PC版與手機版全浮動式、拖曳與縮放記憶 UI 系統 =====
 (function () {
     const el = id => document.getElementById(id);
 
-    // 注入 PC 版浮動與縮放 UI 的專用樣式
+    // 注入全方位浮動與縮放 UI 的專用樣式（PC與手機版通用）
     const style = document.createElement('style');
     style.textContent = `
         body {
             overflow: auto !important; /* 允許縮放超出時出現滾動條 */
         }
         
-        @media (min-width: 769px) {
-            /* 使左、中、右及日誌列在 PC 上變成可縮放的浮動式視窗 */
-            #col-left, #col-center, #col-right, #log-row {
-                position: fixed !important;
-                margin: 0 !important;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85) !important;
-                border: 2px solid #8d6846 !important;
-                border-radius: 6px !important;
-                background: #111318 !important;
-                display: flex !important;
-                flex-direction: column !important;
-                resize: both !important;
-                overflow: hidden !important;
-            }
-            
-            #col-left.ui-minimized,
-            #col-center.ui-minimized,
-            #col-right.ui-minimized,
-            #log-row.ui-minimized {
-                display: none !important;
-            }
-            
-            #col-left {
-                width: 340px;
-                height: 720px;
-                min-width: 280px !important;
-                min-height: 250px !important;
-            }
-            
-            #col-center {
-                width: 820px;
-                height: 560px;
-                min-width: 450px !important;
-                min-height: 300px !important;
-            }
-            
-            #col-right {
-                width: 380px;
-                height: 720px;
-                min-width: 320px !important;
-                min-height: 250px !important;
-            }
-            
-            #log-row {
-                width: 820px;
-                height: 250px;
-                min-width: 400px !important;
-                min-height: 150px !important;
-            }
-            
-            #combat-log-panel, #syslog-panel {
-                flex: 1 1 0 !important;
-                height: 100% !important;
-                border: none !important;
-                background: transparent !important;
-                min-height: 0 !important;
-            }
-            
-            #status-panel {
-                flex: 0 0 auto !important;
-            }
-            
-            #squad-panel {
-                flex: 1 1 0 !important;
-                min-height: 0 !important;
-                display: flex !important;
-                flex-direction: column !important;
-            }
-            
-            #squad-tab-team, #squad-tab-skill {
-                flex: 1 1 0 !important;
-                overflow-y: auto !important;
-            }
+        /* 使左、中、右及日誌列變成可縮放的浮動式視窗 */
+        #col-left, #col-center, #col-right, #log-row {
+            position: fixed !important;
+            margin: 0 !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85) !important;
+            border: 2px solid #8d6846 !important;
+            border-radius: 6px !important;
+            background: #111318 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            resize: both !important;
+            overflow: hidden !important;
+        }
+        
+        #col-left.ui-minimized,
+        #col-center.ui-minimized,
+        #col-right.ui-minimized,
+        #log-row.ui-minimized {
+            display: none !important;
+        }
+        
+        #col-left {
+            width: 340px;
+            height: 720px;
+            min-width: 280px !important;
+            min-height: 250px !important;
+        }
+        
+        #col-center {
+            width: 820px;
+            height: 560px;
+            min-width: 300px !important;
+            min-height: 200px !important;
+        }
+        
+        #col-right {
+            width: 380px;
+            height: 720px;
+            min-width: 320px !important;
+            min-height: 250px !important;
+        }
+        
+        #log-row {
+            width: 820px;
+            height: 250px;
+            min-width: 300px !important;
+            min-height: 120px !important;
+        }
+        
+        #combat-log-panel, #syslog-panel {
+            flex: 1 1 0 !important;
+            height: 100% !important;
+            border: none !important;
+            background: transparent !important;
+            min-height: 0 !important;
+        }
+        
+        #status-panel {
+            flex: 0 0 auto !important;
+        }
+        
+        #squad-panel {
+            flex: 1 1 0 !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        
+        #squad-tab-team, #squad-tab-skill {
+            flex: 1 1 0 !important;
+            overflow-y: auto !important;
+        }
 
-            #tab-content-panel {
-                flex: 1 1 0 !important;
-                min-height: 0 !important;
-                height: auto !important;
-            }
-            
-            #map-view-panel {
-                width: 100% !important;
-                flex: 1 1 auto !important;
-                display: flex !important;
-                flex-direction: column !important;
-                min-height: 0 !important;
-                border: none !important;
-                background: transparent !important;
-            }
-            
-            #battle-view.area-fit:not(.hidden) {
-                width: 100% !important;
-                max-width: 100% !important;
-                height: auto !important;
-                aspect-ratio: 16 / 9 !important;
-                flex: 1 1 auto !important;
-                min-height: 0 !important;
-                align-self: center !important;
-            }
-            
-            /* 讓怪物列表的高度隨戰鬥地圖寬度等比例放大，解決縮放後怪變小隻的問題 */
-            #battle-view.area-fit #mob-list,
-            #battle-view.area-fit #mob-list:has(.boss-slot),
-            #battle-view.area-fit #mob-list:has(.mob-back) {
-                height: 56% !important;
-            }
-            
-            #town-view {
-                width: 100% !important;
-                height: 100% !important;
-                flex: 1 1 auto !important;
-                min-height: 0 !important;
-            }
-            
-            /* 拖曳握把條 */
-            .ui-drag-handle {
-                height: 28px;
-                background: linear-gradient(180deg, #4a3b32, #2d241e);
-                border-bottom: 1px solid #8d6846;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 0 10px;
-                cursor: move;
-                user-select: none;
-                color: #fde68a;
-                font-size: 13px;
-                font-weight: bold;
-                flex-shrink: 0;
-            }
-            
-            .ui-drag-handle .ui-drag-title {
-                pointer-events: none;
-            }
-            
-            /* 自訂原生縮放角把手外觀 */
-            #col-left::-webkit-resizer,
-            #col-center::-webkit-resizer,
-            #col-right::-webkit-resizer,
-            #log-row::-webkit-resizer {
-                background-color: #8d6846;
-                border: 1px solid #4a3b32;
-                border-radius: 2px;
-                outline: 1px solid rgba(0,0,0,0.5);
-            }
+        #tab-content-panel {
+            flex: 1 1 0 !important;
+            min-height: 0 !important;
+            height: auto !important;
+        }
+        
+        #map-view-panel {
+            width: 100% !important;
+            flex: 1 1 auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+            min-height: 0 !important;
+            border: none !important;
+            background: transparent !important;
+        }
+        
+        #battle-view.area-fit:not(.hidden) {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            aspect-ratio: 16 / 9 !important;
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            align-self: center !important;
+        }
+        
+        /* 讓怪物列表的高度隨戰鬥地圖寬度等比例放大，解決縮放後怪變小隻的問題 */
+        #battle-view.area-fit #mob-list,
+        #battle-view.area-fit #mob-list:has(.boss-slot),
+        #battle-view.area-fit #mob-list:has(.mob-back) {
+            height: 56% !important;
+        }
+        
+        #town-view {
+            width: 100% !important;
+            height: 100% !important;
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+        }
+        
+        /* 拖曳握把條 */
+        .ui-drag-handle {
+            height: 28px;
+            background: linear-gradient(180deg, #4a3b32, #2d241e);
+            border-bottom: 1px solid #8d6846;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            cursor: move;
+            user-select: none;
+            color: #fde68a;
+            font-size: 13px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .ui-drag-handle .ui-drag-title {
+            pointer-events: none;
+        }
+        
+        /* 自訂原生縮放角把手外觀 */
+        #col-left::-webkit-resizer,
+        #col-center::-webkit-resizer,
+        #col-right::-webkit-resizer,
+        #log-row::-webkit-resizer {
+            background-color: #8d6846;
+            border: 1px solid #4a3b32;
+            border-radius: 2px;
+            outline: 1px solid rgba(0,0,0,0.5);
         }
     `;
     document.head.appendChild(style);
@@ -161,8 +159,6 @@
     window._currentFocusedWindowId = '';
 
     window.updateWindowZIndices = function () {
-        if (innerWidth <= 768) return;
-        
         const ids = ['col-left', 'col-center', 'col-right', 'log-row'];
         const prefixes = ['ui_col_left', 'ui_col_center', 'ui_col_right', 'ui_log_row'];
         const focusedId = window._currentFocusedWindowId || '';
@@ -212,6 +208,32 @@
         if (typeof refreshEquipmentWindow === 'function') refreshEquipmentWindow();
     };
 
+    function toggleControlPanelCollapse() {
+        const panel = el('game-control-panel');
+        if (!panel) return;
+        
+        const isCollapsed = localStorage.getItem('ui_control_panel_collapsed') === '1';
+        const newCollapsed = !isCollapsed;
+        
+        localStorage.setItem('ui_control_panel_collapsed', newCollapsed ? '1' : '0');
+        applyControlPanelCollapseState();
+    }
+
+    function applyControlPanelCollapseState() {
+        const panel = el('game-control-panel');
+        if (!panel) return;
+        
+        const isCollapsed = localStorage.getItem('ui_control_panel_collapsed') === '1';
+        const contentDiv = panel.querySelector('.control-panel-content');
+        const toggleBtn = el('game-control-toggle');
+        
+        if (contentDiv && toggleBtn) {
+            contentDiv.style.display = isCollapsed ? 'none' : 'flex';
+            toggleBtn.textContent = isCollapsed ? '▶ 展開' : '◀ 收折';
+            toggleBtn.style.borderRadius = isCollapsed ? '0 3px 3px 0' : '0';
+        }
+    }
+
     function createControlPanel() {
         if (el('game-control-panel')) return;
 
@@ -235,7 +257,8 @@
 
         panel.innerHTML = `
             <div id="game-control-drag" style="cursor:move; padding: 6px 8px; display:flex; align-items:center; background:linear-gradient(180deg, #4a3b32, #2d241e); color:#fde68a; font-weight:bold; font-size:12px; border-right:1px solid #8d6846; border-radius:3px 0 0 3px; height:100%; min-height:28px;">☰ 拖曳</div>
-            <div style="display:flex; align-items:center; gap:8px; padding: 4px 10px;">
+            <button id="game-control-toggle" type="button" style="background:#8d6846;border:1px solid #4a3b32;color:#fff;padding:2px 8px;cursor:pointer;font-size:11px;font-weight:bold;height:100%;min-height:28px;transition:all 0.15s ease;">◀ 收折</button>
+            <div class="control-panel-content" style="display:flex; align-items:center; gap:8px; padding: 4px 10px;">
                 <span style="font-weight:bold; pointer-events:none; font-size:12px; color:#fde68a;">🔍 畫面縮放</span>
                 <button id="game-zoom-minus" type="button" style="background:#4a3b32;border:1px solid #8d6846;color:#fde68a;padding:1px 5px;border-radius:3px;cursor:pointer;font-weight:bold;">-</button>
                 <input id="game-zoom-slider" type="range" min="0.5" max="1.5" step="0.05" value="1" style="width:70px;margin:0;cursor:pointer;">
@@ -283,7 +306,7 @@
             if (!drag || drag.id !== e.pointerId) return;
             let tx = e.clientX - drag.dx;
             let ty = e.clientY - drag.dy;
-            panel.style.left = Math.max(0, Math.min(innerWidth - 100, tx)) + 'px';
+            panel.style.left = Math.max(0, Math.min(innerWidth - 60, tx)) + 'px';
             panel.style.top = Math.max(0, Math.min(innerHeight - 30, ty)) + 'px';
         };
         function stopDrag(e) {
@@ -294,6 +317,9 @@
         }
         dragHandle.onpointerup = stopDrag;
         dragHandle.onpointercancel = stopDrag;
+
+        // 收折按鈕綁定
+        el('game-control-toggle').onclick = toggleControlPanelCollapse;
 
         // 縮放按鈕邏輯
         const slider = el('game-zoom-slider');
@@ -352,6 +378,9 @@
         } else {
             applyGameScale(1.0);
         }
+
+        // 初始化收折狀態
+        applyControlPanelCollapseState();
     }
 
     function toggleWindowMinimize(id, key) {
@@ -413,19 +442,6 @@
         let drag = null;
 
         function restorePositionAndSize() {
-            if (innerWidth <= 768) {
-                targetEl.style.removeProperty('position');
-                targetEl.style.removeProperty('left');
-                targetEl.style.removeProperty('top');
-                targetEl.style.removeProperty('right');
-                targetEl.style.removeProperty('bottom');
-                targetEl.style.removeProperty('width');
-                targetEl.style.removeProperty('height');
-                targetEl.style.removeProperty('display');
-                targetEl.style.removeProperty('flex-direction');
-                return;
-            }
-
             targetEl.style.position = 'fixed';
             
             // 還原尺寸
@@ -461,7 +477,6 @@
         }
 
         handle.addEventListener('pointerdown', function (event) {
-            if (innerWidth <= 768) return;
             if (event.target.closest('button, input, select')) return;
             drag = {
                 id: event.pointerId,
@@ -596,8 +611,6 @@
 
         // 統一在指標放開時，儲存所有視窗的位置與大小（覆蓋拖曳、縮放與邊界改變）
         window.addEventListener('pointerup', function () {
-            if (innerWidth <= 768) return;
-            
             [['ui_col_left', 'col-left'], ['ui_col_center', 'col-center'], ['ui_col_right', 'col-right'], ['ui_log_row', 'log-row']].forEach(([prefix, id]) => {
                 let target = el(id);
                 if (target) {

@@ -512,10 +512,9 @@
         if (!frame || !handle) return;
         const win = el('equipment-window');
         
-        const shouldEmbed = innerWidth <= 768;
+        const shouldEmbed = false;
         if (win) {
-            if (shouldEmbed) win.classList.add('equipment-window-embedded');
-            else win.classList.remove('equipment-window-embedded');
+            win.classList.remove('equipment-window-embedded');
         }
         
         const background = frame.querySelector('.equipment-window-bg');
